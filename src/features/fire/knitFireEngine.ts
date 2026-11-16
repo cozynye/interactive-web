@@ -34,12 +34,12 @@ const TYPES = [
   'split',
   'palm',
   'logo',
-  // 동물·발바닥·뼈다귀 중 하나를 뽑는다
-  'animal',
-  'animal',
-  'animal',
-  'animal',
-  'animal',
+  // 그림 모양(토성·달·나비 등) 중 하나를 뽑는다
+  'shape',
+  'shape',
+  'shape',
+  'shape',
+  'shape',
 ];
 const MAX_PARTS = 4000;
 // 대량 폭죽 한 번에 쏘는 발수
@@ -575,9 +575,9 @@ export function createKnitFire({
       g.drawImage(logoImg, 0, 0, pw, ph)
     );
   }
-  // 동물 모양 (발바닥·개·고양이·뼈다귀)
+  // 그림 모양 (knitFire.shapes.ts 의 실루엣)
   const shapeCache = new Map<string, number[][] | null>();
-  function animalShape(type: string) {
+  function drawnShape(type: string) {
     if (!shapeCache.has(type)) {
       const h = 34;
       shapeCache.set(
@@ -1001,12 +1001,12 @@ export function createKnitFire({
         });
       }
     } else {
-      // 모양 불꽃: 하트·별·로고·동물 → 칸 목표로 퍼짐
+      // 모양 불꽃: 하트·별·로고·그림 → 칸 목표로 퍼짐
       let pts: number[][] = [];
-      const isAnimal = type in SHAPE_DRAWERS;
-      if (type === 'logo' || isAnimal) {
+      const isDrawn = type in SHAPE_DRAWERS;
+      if (type === 'logo' || isDrawn) {
         if (type === 'logo' && !logoCells) logoCells = logoShape(34);
-        const cells = isAnimal ? animalShape(type) : logoCells;
+        const cells = isDrawn ? drawnShape(type) : logoCells;
         if (cells)
           pts = cells.map(([c, r]) => [c * CW * 1.15 * S0, r * CH * 1.15 * S0]);
         else type = 'heart';
@@ -1044,7 +1044,7 @@ export function createKnitFire({
       }
       const D = 1.9;
       const isLogo = type === 'logo';
-      // 칸 그림(로고·동물)은 점이 촘촘해서 꼬리를 짧게, 덜 처지게
+      // 칸 그림(로고·그림)은 점이 촘촘해서 꼬리를 짧게, 덜 처지게
       const isCells = isLogo || type in SHAPE_DRAWERS;
       pts.forEach(([dx, dy]) => {
         const a = Math.atan2(dy, dx);
@@ -1144,7 +1144,7 @@ export function createKnitFire({
     let ty = y ?? 0;
     let type = opt.type || pick(TYPES);
     if (type === 'logo' && Math.random() < 0.6) type = 'peony'; // 로고는 가끔만
-    if (type === 'animal') type = pick(SHAPE_TYPES);
+    if (type === 'shape') type = pick(SHAPE_TYPES);
     if (type === 'logo' || type in SHAPE_DRAWERS)
       ty = clamp(ty, Math.max(150, 140 * sc()), groundTop - 150 * sc());
     launch(x, ty, type, palette(opt.yarn), undefined, opt.from, opt.sway);
