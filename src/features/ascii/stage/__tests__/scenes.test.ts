@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { donutFrame } from '../../donut';
+import { blackholePhase } from '../blackhole';
 import { Grid } from '../grid';
 import { rosePhase } from '../rose';
 import { SCENES } from '../scenes';
@@ -21,6 +22,7 @@ describe.each(Object.entries(SCENES))('장면 %s', (_name, create) => {
     for (let i = 0; i < 360; i++) {
       g.clear();
       scene.frame(g, (i + 1) / 30, 1 / 30);
+      g.finish((i + 1) / 30);
       for (let k = 0; k < g.lum.length; k++) {
         if (!Number.isFinite(g.lum[k])) broken++;
         else if (g.lum[k] > 0.02) lit++;
@@ -48,6 +50,25 @@ describe.each(Object.entries(SCENES))('장면 %s', (_name, create) => {
   });
 });
 
+describe('몸통 마무리', () => {
+  it('가장자리는 윤곽선 글자, 안쪽은 묶음 글자가 된다', () => {
+    const g = new Grid();
+    g.resize(20, 10, 1.87);
+    g.clear();
+    for (let r = 2; r < 8; r++)
+      for (let c = 4; c < 16; c++) g.put(c, r, 1, 0.5, 255, 0, 0, 0, 1);
+    g.finish(0);
+    const at = (c: number, r: number) => String.fromCharCode(g.ch[r * 20 + c]);
+    expect(at(4, 4)).toBe('|');
+    expect(at(10, 2)).toBe('-');
+    expect(at(10, 7)).toBe('_');
+    expect('|/\\-_+').not.toContain(at(10, 4));
+    expect(g.lum[4 * 20 + 4]).toBeGreaterThanOrEqual(0.85);
+    // 몸통이 아닌 칸은 그대로다
+    expect(g.ch[0]).toBe(0);
+  });
+});
+
 describe('장미의 단계', () => {
   it('자람 → 핌 → 활짝 → 사라짐 순서로 넘어간다', () => {
     expect([0, 2, 5, 12, 27.5].map(rosePhase)).toEqual([
@@ -57,6 +78,12 @@ describe('장미의 단계', () => {
       'full',
       'fade',
     ]);
+  });
+});
+
+describe('블랙홀의 단계', () => {
+  it('원 → 빛 → 원반 → 흐름 순서로 넘어가고 되돌아가지 않는다', () => {
+    expect([0, 1, 3, 6, 7.8, 60].map(blackholePhase)).toEqual(['ring', 'ring', 'glow', 'disk', 'flow', 'flow']);
   });
 });
 

@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 // 카드에 넣는 작은 미리보기. 없는 항목은 이름만 보인다.
 const PREVIEWS: Record<string, ReactNode> = {
+  blackhole: <AsciiStage name="blackhole" />,
   namsan: <AsciiStage name="namsan" />,
   'starry-night': <AsciiStage name="starryNight" />,
   galaxy: <AsciiStage name="galaxy" />,

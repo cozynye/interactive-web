@@ -1,4 +1,5 @@
 import { createBigbang } from './bigbang';
+import { createBlackhole } from './blackhole';
 import { createFireworks } from './fireworks';
 import { createGalaxy } from './galaxy';
 import { Scene } from './grid';
@@ -10,6 +11,7 @@ import { createTree } from './tree';
 // 무대에 올릴 수 있는 장면 전부. 새 장면은 여기에 등록한다.
 export const SCENES = {
   namsan: createNamsan,
+  blackhole: createBlackhole,
   galaxy: createGalaxy,
   starryNight: createStarryNight,
   tree: createTree,

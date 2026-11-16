@@ -19,16 +19,20 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glowRef = useRef<HTMLCanvasElement>(null);
+  const haloRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const wrap = wrapRef.current;
     const cv = canvasRef.current;
     const glow = glowRef.current;
     const ctx = cv?.getContext('2d');
+    const halo = haloRef.current;
     const gctx = glow?.getContext('2d');
-    if (!wrap || !cv || !glow || !ctx || !gctx) return undefined;
+    const hctx = halo?.getContext('2d');
+    if (!wrap || !cv || !glow || !halo || !ctx || !gctx || !hctx) return undefined;
 
     const scene = SCENES[name]();
+    const trail = scene.trail ?? 0.45;
     const grid = new Grid();
     const inks = new Map<number, string>();
     let W = 0;
@@ -40,10 +44,19 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
     let t = 0;
     let ticker: Ticker | null = null;
 
-    const draw = () => {
+    // fresh: 앞 프레임을 남기지 않고 새로 그린다
+    const draw = (fresh = false) => {
       const { cols, lum, rgb, ch } = grid;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
+      if (fresh || trail <= 0) {
+        ctx.clearRect(0, 0, W, H);
+      } else {
+        // 앞 프레임을 흐리게 남기고 그 위에 더 밝은 쪽만 덮는다
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = `rgba(0,0,0,${1 - trail})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'lighten';
+      }
       ctx.font = `${cellW / 0.6}px ${FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -72,16 +85,19 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
           top + (Math.floor(i / cols) + 0.5) * cellH
         );
       }
-      // 같은 그림을 흐리게 깔아 번지는 빛을 만든다 (흐림은 CSS가 맡는다)
-      gctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+      // 같은 그림을 두 겹으로 흐리게 얹어 번지는 빛을 만든다: 글자에 붙는 좁은 빛과 넓게 퍼지는 빛 (흐림은 CSS가 맡는다)
       gctx.clearRect(0, 0, glow.width, glow.height);
-      gctx.drawImage(cv, 0, 0);
+      gctx.drawImage(cv, 0, 0, glow.width, glow.height);
+      hctx.clearRect(0, 0, halo.width, halo.height);
+      hctx.drawImage(cv, 0, 0, halo.width, halo.height);
     };
 
     const step = (dt: number) => {
       t += dt;
       grid.clear();
       scene.frame(grid, t, dt);
+      grid.finish(t);
     };
 
     // 정지 장면: 처음부터 STILL_AT초까지 그리지 않고 돌린 뒤 한 장만 그린다
@@ -89,7 +105,7 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
       if (!grid.cols) return;
       t = 0;
       for (let i = 0; i < STILL_AT * FPS; i++) step(1 / FPS);
-      draw();
+      draw(true);
     };
 
     const resize = () => {
@@ -105,10 +121,13 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
       const rows = Math.max(8, Math.floor(H / cellH));
       top = (H - rows * cellH) / 2;
       grid.resize(cols, rows, cellH / cellW);
-      for (const c of [cv, glow]) {
-        c.width = Math.round(W * dpr);
-        c.height = Math.round(H * dpr);
-      }
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      // 흐리게 볼 그림이라 작게 그려도 된다
+      glow.width = Math.round(cv.width / 2);
+      glow.height = Math.round(cv.height / 2);
+      halo.width = Math.round(cv.width / 6);
+      halo.height = Math.round(cv.height / 6);
       if (ticker?.state() === 'still') renderStill();
     };
 
@@ -137,8 +156,9 @@ function AsciiStage({ name, className }: { name: SceneName; className?: string }
       className={`${styles.stage}${className ? ` ${className}` : ''}`}
       aria-hidden="true"
     >
-      <canvas ref={glowRef} className={styles.glow} />
       <canvas ref={canvasRef} className={styles.ink} />
+      <canvas ref={glowRef} className={styles.glow} />
+      <canvas ref={haloRef} className={styles.halo} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { code, Grid, hash, rng, Scene } from './grid';
+import { code, Grid, hash, rng, Scene, smooth } from './grid';
 
 // 색은 파랑 두 가지와 노랑, 사이프러스의 검푸른 초록만 쓴다
 const DEEP = [56, 92, 186];
@@ -33,6 +33,7 @@ interface Stroke {
 }
 
 // 고흐의 「별이 빛나는 밤」을 흐름으로 옮긴 장면. 붓 자국 하나하나가 소용돌이를 따라 떠돈다.
+// 처음에는 빈 화면에 달과 별이 켜지고, 거기서부터 붓질이 번져 나간다.
 export function createStarryNight(): Scene {
   const rand = rng(1889);
   // 격자 크기를 알기 전이라 자리는 비워 두고, 수명 0으로 두어 첫 프레임에 제자리를 잡게 한다
@@ -70,10 +71,12 @@ export function createStarryNight(): Scene {
         let vx = 2.4;
         let vy = 0.7 * Math.sin(p.y * 0.22 + p.x * 0.09 + t * 0.3);
         let glow = 0;
+        let near = Infinity;
         for (let i = 0; i < SWIRLS.length; i++) {
           const dx = p.x - sx[i];
           const dy = p.y - sy[i];
           const d2 = dx * dx + dy * dy;
+          if (d2 < near) near = d2;
           const r = sr[i];
           const k = (SWIRLS[i].s * 5.5 * r) / (d2 + r * r);
           vx -= dy * k;
@@ -110,7 +113,10 @@ export function createStarryNight(): Scene {
         const r = base[0] + (YELLOW[0] - base[0]) * m;
         const gr = base[1] + (YELLOW[1] - base[1]) * m;
         const b = base[2] + (YELLOW[2] - base[2]) * m;
-        const lum = (0.34 + 0.3 * p.tone + 0.4 * m) * Math.min(1, p.life);
+        // 붓질은 달과 별, 소용돌이에서 시작해 바깥으로 번진다
+        const painted = smooth((t * 0.16 + 0.04 - Math.sqrt(near) / H) / 0.12);
+        if (painted <= 0) continue;
+        const lum = (0.34 + 0.3 * p.tone + 0.4 * m) * Math.min(1, p.life) * painted;
         for (let k = 0; k < p.n; k++)
           g.add(p.hx[k] * aspect, p.hy[k], lum * (1 - k / TRAIL) * 0.6, r, gr, b, ch);
       }
@@ -118,24 +124,31 @@ export function createStarryNight(): Scene {
       // 달과 별의 알맹이
       SWIRLS.forEach((s, i) => {
         if (!s.glow) return;
-        const rad = sr[i] * 0.38;
+        // 달과 별이 하나씩 켜진다
+        const pop = smooth((t - 0.1 - i * 0.12) / 0.5);
+        if (pop <= 0) return;
+        const rad = sr[i] * 0.38 * pop;
+        if (s.glow === 1 && t > 0.4 && t < 1.1) g.rays(sx[i] * aspect, sy[i], 6, 255, 228, 130);
         for (let dy = -Math.ceil(rad); dy <= rad; dy++)
           for (let dx = -Math.ceil(rad * aspect); dx <= rad * aspect; dx++)
             if (Math.hypot(dx / aspect, dy) <= rad)
               g.put(sx[i] * aspect + dx, sy[i] + dy, 2, 0.95, 255, 228, 130, code(s.glow === 1 ? '@' : 'O'));
       });
 
-      // 언덕과 마을
+      // 언덕과 마을: 능선이 왼쪽에서 오른쪽으로 그어지고, 땅이 채워진 뒤 창에 불이 하나씩 켜진다
+      const ridgeTo = smooth((t - 2) / 2.5) * 1.02 * cols;
+      const land = smooth((t - 3.5) / 2);
       for (let c = 0; c < cols; c++) {
+        if (c > ridgeTo) break;
         const ridge = hz - 1 - Math.round(2.2 + 2.2 * Math.sin(c * 0.045 + 0.6) + 1.2 * Math.sin(c * 0.11));
         for (let r = ridge; r < rows; r++) {
           const w = hash(c * 1.7, r * 3.1);
           const wave = 0.2 + 0.1 * Math.sin(c * 0.3 + r * 0.9 + t * 0.6);
-          g.put(c, r, 1, r === ridge ? 0.5 : wave, DEEP[0], DEEP[1], DEEP[2], code(r === ridge ? '_' : w < 0.5 ? '~' : '-'));
+          g.put(c, r, 1, r === ridge ? 0.5 : wave * land, DEEP[0], DEEP[1], DEEP[2], code(r === ridge ? '_' : w < 0.5 ? '~' : '-'));
         }
         // 창문 불빛
         const house = hash(Math.floor(c / 3), 9);
-        if (c > cols * 0.3 && house < 0.5 && c % 3 === 1) {
+        if (c > cols * 0.3 && house < 0.5 && c % 3 === 1 && t > 5.2 + house * 6) {
           const r = hz + 1 + Math.floor(house * 2 * (rows - hz - 3));
           g.put(c, r, 0.5, 0.6 + 0.3 * Math.sin(t * (0.5 + house * 3) + c), YELLOW[0], YELLOW[1], YELLOW[2], code('o'));
           g.put(c, r - 1, 0.5, 0.42, LIGHT[0], LIGHT[1], LIGHT[2], code('^'));
@@ -143,13 +156,15 @@ export function createStarryNight(): Scene {
       }
       // 교회 첨탑
       const spire = Math.round(cols * 0.58);
-      for (let k = 0; k < Math.round(rows * 0.13); k++)
-        g.put(spire, hz - k, 0.4, 0.5, LIGHT[0], LIGHT[1], LIGHT[2], code(k === Math.round(rows * 0.13) - 1 ? 'A' : '|'));
+      for (let k = 0; k < Math.round(rows * 0.13 * smooth((t - 4) / 1.5)); k++)
+        g.put(spire, hz - k, 0.4, 0.5, LIGHT[0], LIGHT[1], LIGHT[2], code(t > 5.5 && k === Math.round(rows * 0.13) - 1 ? 'A' : '|'));
 
       // 사이프러스: 불꽃처럼 일렁이는 검푸른 나무
       const base = cols * 0.15;
       const topRow = Math.round(rows * 0.2);
-      for (let r = topRow; r < rows; r++) {
+      // 사이프러스는 땅에서 위로 자란다
+      const grown = rows - (rows - topRow) * smooth((t - 1.5) / 3.5);
+      for (let r = Math.ceil(grown); r < rows; r++) {
         const k = (r - topRow) / (rows - topRow);
         const half = (0.6 + k * cols * 0.05) * (1 + 0.18 * Math.sin(r * 0.7 - t * 1.4));
         const lean = Math.sin(r * 0.35 - t * 0.9) * (1 - k) * 2;
@@ -159,7 +174,9 @@ export function createStarryNight(): Scene {
         }
       }
 
-      g.text(cols - 22, rows - 2, 'after van Gogh, 1889', 0.45, PALE[0], PALE[1], PALE[2]);
+      // 다 그린 뒤에 서명을 한 글자씩 적는다
+      const sign = 'after van Gogh, 1889'.slice(0, Math.max(0, Math.floor((t - 8.5) * 12)));
+      g.text(cols - 22, rows - 2, sign, 0.45, PALE[0], PALE[1], PALE[2]);
     },
   };
 }

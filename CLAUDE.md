@@ -45,7 +45,7 @@ src/
 ## 규칙
 
 - 새 효과는 `src/app/<경로>/`에 페이지를 만들고 홈(`src/app/page.tsx`)에 타일을 추가한다.
-- 색이 들어가는 아스키 장면은 `src/features/ascii/stage/`에 `Scene`(매 프레임 `Grid`를 채우는 함수)으로 만들고 `scenes.ts`의 `SCENES`에 등록한다. 칸 폭은 기본 6px이고 장면이 `cell`로 바꾼다. 색은 장면마다 두세 가지로 제한하고, 같은 경로를 되풀이하지 않도록 주기가 서로 다른 흔들림이나 난수 재시작을 섞는다.
+- 색이 들어가는 아스키 장면은 `src/features/ascii/stage/`에 `Scene`(매 프레임 `Grid`를 채우는 함수)으로 만들고 `scenes.ts`의 `SCENES`에 등록한다. 칸 폭은 기본 6px이고 장면이 `cell`로 바꾼다. 입체로 보여야 하는 물체는 `put`에 조각 번호(`part`)를 넘기면 무대가 `Grid.finish()`에서 윤곽선과 속 글자를 넣고, 가장 밝은 점에는 `rays()`로 빛살을 그린다. 점을 뿌리기 어려운 장면(블랙홀)은 칸마다 값을 계산해 채운다. 색은 장면마다 두세 가지로 제한하고, 같은 경로를 되풀이하지 않도록 주기가 서로 다른 흔들림이나 난수 재시작을 섞는다.
 - 아스키 작품은 `src/features/ascii/asciiList.ts`에 한 줄 추가하고 `src/app/ascii/<slug>/page.tsx`를 만든다. 목록 카드의 미리보기는 `src/app/ascii/page.tsx`의 `PREVIEWS`에 등록한다.
 - `src/features/fire/`는 다른 프로젝트에서 옮겨 온 코드라 린트 규칙 일부를 풀어 두었다(`eslint.config.mjs`). 엔진은 React와 분리된 `createKnitFire()` 하나로 동작하고, `window`·`localStorage`에 의존해서 서버에서 그리지 않는다.
 - 계속 도는 애니메이션은 직접 `requestAnimationFrame`을 돌리지 않고 `src/lib/ticker.ts`의 `createTicker`를 쓴다. 화면 밖 정지와 `prefers-reduced-motion` 처리가 거기에 있다.

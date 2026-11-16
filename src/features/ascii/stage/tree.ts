@@ -1,9 +1,13 @@
-import { code, Grid, hash, rng, Scene } from './grid';
+import { code, Grid, hash, rng, Scene, smooth } from './grid';
 
 const TAU = Math.PI * 2;
 const BASE = -0.72;
 const TOP = 0.6;
 const CAM = 3.4;
+// 처음 한 번 펼쳐지는 순서(초): 아래에서 위로 쌓임 → 전구가 아래부터 켜짐 → 별이 켜지며 빛살이 뻗음
+const BUILD = 4;
+const LIGHTS_AT = 4.5;
+const STAR_AT = 6.2;
 
 // 점 종류
 const LEAF = 0;
@@ -111,7 +115,8 @@ function build() {
       Math.cos(a) * r,
       BASE + h * (TOP - BASE),
       Math.sin(a) * r,
-      [0, 0, 0],
+      // 전구는 음영이 없어서 법선 자리에 높이를 넣어 둔다 (켜지는 순서)
+      [h, 0, 0],
       LIGHT_COLORS[i % LIGHT_COLORS.length]
     );
   }
@@ -194,6 +199,7 @@ interface Flake {
 }
 
 // 글자로 만든 트리가 돈다. 전구가 깜박이고 눈이 내린다.
+// 처음에는 아래에서 위로 쌓이고, 전구와 별이 차례로 켜진 뒤에 눈이 내리기 시작한다.
 export function createTree(): Scene {
   const { pts, lights } = build();
   const rand = rng(3);
@@ -226,20 +232,38 @@ export function createTree(): Scene {
             g.put(c, r, 90, 0.2, 150, 160, 190, code('-'));
       }
 
+      const head = ((t - 0.2) / BUILD) * 1.2;
+      const starK = smooth((t - STAR_AT) / 0.4);
+      let lightsOn = 0;
       for (const p of pts) {
         const still = p.kind === STAR;
-        const x = still ? p.x : p.x * ca + p.z * sa;
-        const z = still ? 0 : -p.x * sa + p.z * ca;
+        if (still && starK <= 0) continue;
+        // 낮은 점부터 드러나고, 열에 하나는 바깥에서 날아와 제자리에 앉는다
+        const order = (p.y - BASE + 0.32) / (TOP - BASE + 0.32) + p.seed * 0.1;
+        const rev = still ? starK : smooth((head - order) / 0.08);
+        if (rev <= 0.01) continue;
+        const fly = p.seed < 0.1 ? 1 - rev : 0;
+        const px = p.x * (1 + fly * 3);
+        const pz = p.z * (1 + fly * 3);
+        const x = still ? p.x : px * ca + pz * sa;
+        const z = still ? 0 : -px * sa + pz * ca;
         const f = CAM / (CAM + z);
         const sx = cx + x * u * f * aspect;
-        const sy = cy - p.y * u * f;
+        const sy = cy - (p.y + fly * 0.5) * u * f;
+        if (!still && head < 1.3 && Math.abs(head - order) < 0.02) {
+          // 지금 그려지는 줄
+          g.put(sx, sy, z - 0.05, 1, 255, 244, 220, code('*'));
+          continue;
+        }
         if (p.kind === LIGHT) {
+          const on = smooth((t - LIGHTS_AT - p.nx * 1.4) / 0.25);
+          if (on > 0.5) lightsOn++;
           const tw = 0.5 + 0.5 * Math.sin(t * 3.2 + p.seed * 40);
-          g.put(sx, sy, z - 0.03, 0.5 + 0.5 * tw, p.r, p.g, p.b, code(tw > 0.6 ? '@' : 'o'));
+          g.put(sx, sy, z - 0.03, (0.18 + on * (0.32 + 0.5 * tw)) * rev, p.r, p.g, p.b, code(on > 0.5 && tw > 0.6 ? '@' : 'o'));
           continue;
         }
         if (still) {
-          g.put(sx, sy, -5, 0.85 + 0.15 * Math.sin(t * 4 + p.seed * 9), p.r, p.g, p.b, p.ch);
+          g.put(sx, sy, -5, (0.85 + 0.15 * Math.sin(t * 4 + p.seed * 9)) * starK, p.r, p.g, p.b, p.ch);
           continue;
         }
         // 오른쪽 위 앞에서 비추는 빛
@@ -247,12 +271,14 @@ export function createTree(): Scene {
         const nz = -p.nx * sa + p.nz * ca;
         const lit = Math.max(0, nx * 0.4 + p.ny * 0.5 - nz * 0.75);
         const lum = p.kind === LEAF ? 0.2 + 0.72 * lit : 0.42 + 0.58 * lit;
-        g.put(sx, sy, z, lum, p.r, p.g, p.b, p.ch);
+        g.put(sx, sy, z, lum * rev, p.r, p.g, p.b, p.ch);
       }
 
       // 별에서 뻗는 점선 빛줄기
       const sy0 = cy - (TOP + 0.07) * u;
-      const reach = u * (0.2 + 0.05 * Math.sin(t * 2));
+      const reach = u * (0.2 + 0.05 * Math.sin(t * 2)) * starK;
+      // 별이 켜지는 순간에는 빛살이 크게 한 번 뻗는다
+      if (t > STAR_AT && t < STAR_AT + 0.6) g.rays(cx, sy0, 7, 255, 226, 92);
       for (const deg of [-90, -58, -122, 0, 180]) {
         const a = (deg * Math.PI) / 180;
         const ch = deg === -90 ? '|' : deg === -58 ? '/' : deg === -122 ? '\\' : '-';
@@ -262,18 +288,19 @@ export function createTree(): Scene {
         }
       }
 
+      const snow = smooth((t - STAR_AT) / 3);
       for (const fl of flakes) {
         fl.y -= fl.v * dt;
         if (fl.y < -1.2) fl.y = 1.2;
         const f = CAM / (CAM + fl.z);
         const drift = Math.sin(t * 0.6 + fl.z * 5) * 0.04;
-        g.put(cx + (fl.x + drift) * u * f * aspect, cy - fl.y * u * f, fl.z, 0.28 + 0.3 * f, 214, 224, 255, fl.ch);
+        g.put(cx + (fl.x + drift) * u * f * aspect, cy - fl.y * u * f, fl.z, (0.28 + 0.3 * f) * snow, 214, 224, 255, fl.ch);
       }
 
       // 정보 표시는 지난 프레임에 켜진 칸 수를 쓴다
       const deg = (((spin * 180) / Math.PI) % 360).toFixed(1);
       g.text(1, 1, `rotation ${deg}°`, 0.5, 140, 150, 175);
-      g.text(1, 2, `lights ${lights}`, 0.6, 255, 214, 96);
+      g.text(1, 2, `lights ${lightsOn}/${lights}`, 0.6, 255, 214, 96);
       g.text(1, 3, `letters ${letters.toLocaleString('en-US')}`, 0.5, 140, 150, 175);
       letters = 0;
       for (let i = 0; i < g.lum.length; i++) if (g.lum[i] > 0) letters++;

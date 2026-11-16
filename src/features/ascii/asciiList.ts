@@ -8,6 +8,11 @@ export interface AsciiItem {
 // 아스키 작품을 추가하면 여기에 한 줄 넣고 src/app/ascii/<slug>/page.tsx 를 만든다
 export const ASCII_LIST: AsciiItem[] = [
   {
+    slug: 'blackhole',
+    name: '블랙홀',
+    description: '그림자를 두른 빛의 고리와 그 둘레를 도는 가스 원반.',
+  },
+  {
     slug: 'namsan',
     name: '남산',
     description: '남산타워를 바라보는 두 사람의 뒷모습 위로 불꽃이 터진다.',

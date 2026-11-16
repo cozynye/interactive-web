@@ -1,6 +1,8 @@
-import { code, Grid, rng, Scene } from './grid';
+import { code, Grid, rng, Scene, smooth } from './grid';
 
 const TAU = Math.PI * 2;
+// 한 점이 이 시간(초) 동안 부풀다가 터진다
+const BANG = 1.8;
 const COLORS = [
   [255, 236, 204],
   [255, 236, 204],
@@ -19,6 +21,7 @@ interface Star {
 }
 
 // 한 점에서 별빛이 사방으로 뻗어 나간다. 멀어질수록 빨라지고 꼬리가 길어진다.
+// 처음에는 한가운데의 빛만 차오르다가 번쩍이며 터진다.
 export function createBigbang(): Scene {
   const rand = rng(42);
   const spawn = (r: number): Star => ({
@@ -28,7 +31,8 @@ export function createBigbang(): Scene {
     c: COLORS[Math.floor(rand() * COLORS.length)],
     bright: 0.45 + rand() * 0.55,
   });
-  const stars = Array.from({ length: 1500 }, () => spawn(0.03 + Math.pow(rand(), 2) * 1.8));
+  // 모두 한가운데에 모여 있다가 터지는 순간 풀려난다
+  const stars = Array.from({ length: 1500 }, () => spawn(0.02 + rand() * 0.1));
   // 한가운데에서 들끓는 빛
   const core = Array.from({ length: 1100 }, () => ({
     a: rand() * TAU,
@@ -47,7 +51,11 @@ export function createBigbang(): Scene {
       const turn = t * 0.03;
       const pulse = 1 + 0.25 * Math.sin(t * 0.7);
 
+      const flash = Math.exp(-Math.pow((t - BANG) / 0.3, 2));
+      if (flash > 0.15) g.rays(cx, cy, Math.round(10 * flash), 255, 240, 214);
+
       for (const s of stars) {
+        if (t < BANG) break;
         s.r += (s.r * 1.1 + 0.03) * s.v * pulse * dt;
         if (s.r > far) Object.assign(s, spawn(0.03 + rand() * 0.08));
         const ca = Math.cos(s.a + turn) * u * aspect;
@@ -62,7 +70,8 @@ export function createBigbang(): Scene {
         }
       }
 
-      const swell = 1 + 0.12 * Math.sin(t * 1.3);
+      // 터지기 전에는 작은 점에서 차오른다
+      const swell = (1 + 0.12 * Math.sin(t * 1.3)) * (0.12 + 0.88 * smooth(t / BANG)) * (1 + 0.8 * flash);
       for (const p of core) {
         const lum = 0.25 + 0.75 * Math.pow(0.5 + 0.5 * Math.sin(t * p.sp + p.ph), 2);
         const r = p.r * swell;

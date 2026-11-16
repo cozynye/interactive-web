@@ -1,4 +1,4 @@
-import { code, Grid, hash, rng, Scene } from './grid';
+import { code, Grid, hash, rng, Scene, smooth } from './grid';
 
 const TAU = Math.PI * 2;
 // [바깥 색, 안쪽 색]
@@ -35,11 +35,13 @@ interface Spark {
 }
 
 // 강 건너 도시 위로 터지는 불꽃놀이. 수평선 아래에는 물에 비친 모습이 일렁인다.
+// 처음 3초 동안 도시의 창과 강변에 불이 들어오고 나서 쏘기 시작한다.
 export function createFireworks(): Scene {
   const rand = rng(11);
   let shells: Shell[] = [];
   let sparks: Spark[] = [];
-  let next = 0.2;
+  // 도시에 불이 다 들어온 뒤에 첫 발을 쏜다
+  let next = 3;
   let launched = 0;
   // 칸 수가 바뀌면 건물을 다시 세운다
   let builtFor = '';
@@ -92,11 +94,16 @@ export function createFireworks(): Scene {
         skyline(cols, rows);
       }
 
+      const sky = smooth(t / 2);
+      // 창문은 무작위 순서로 하나씩 켜지고, 강변 불빛은 왼쪽에서 오른쪽으로 이어진다
+      const windows = smooth(t / 2.8) * 1.02;
+      const shoreTo = (t / 2) * cols;
+
       // 하늘의 별
       for (let i = 0; i < cols * 0.9; i++) {
         const c = Math.floor(hash(i, 1) * cols);
         const r = Math.floor(hash(i, 2) * hz * 0.9);
-        g.put(c, r, 9, 0.12 + 0.14 * hash(i, Math.floor(t * 1.5)), 170, 185, 230, code('.'));
+        g.put(c, r, 9, (0.12 + 0.14 * hash(i, Math.floor(t * 1.5))) * sky, 170, 185, 230, code('.'));
       }
 
       // 건물과 창문 불빛
@@ -104,13 +111,14 @@ export function createFireworks(): Scene {
         for (let k = 1; k <= roof[c]; k++) {
           const r = hz - k;
           const w = hash(c * 3.1, r * 7.7);
-          if (w < 0.22) {
+          if (w < 0.22 && hash(c * 5.3, r * 1.9) < windows) {
             const flick = 0.75 + 0.25 * Math.sin(t * (0.6 + w * 9) + c);
             const warm = hash(c, r) < 0.75;
             g.put(c, r, 5, (0.5 + w * 2) * flick, 255, warm ? 206 : 236, warm ? 120 : 200, code(WINDOWS[Math.floor(w * 25) % WINDOWS.length]));
           } else g.put(c, r, 5, 0.3, 96, 122, 190, code(w < 0.6 ? ':' : '.'));
         }
         // 강변을 따라 늘어선 불빛
+        if (c > shoreTo) continue;
         const s = hash(c, 77);
         g.put(c, hz, 4, 0.5 + 0.45 * hash(c, Math.floor(t * 3 + s * 9)), 255, 214, 110, code(SHORE[Math.floor(s * SHORE.length)]));
       }
