@@ -9,8 +9,8 @@ import {
 import {
   SHAPE_DRAWERS,
   SHAPE_TYPES,
-  VET_ICON,
-  VET_ICON_COLORS,
+  KEEPER_ICON,
+  KEEPER_ICON_COLORS,
 } from './knitFire.shapes';
 
 // ───────── 기본값 ─────────
@@ -1167,9 +1167,9 @@ export function createKnitFire({
           );
       });
   }
-  // 대량 폭죽: 수의사 머리 위에서 여러 발이 제각각 다른 길로 올라감
+  // 대량 폭죽: 불꽃지기 머리 위에서 여러 발이 제각각 다른 길로 올라감
   function fireMass() {
-    const v = vetBox();
+    const v = keeperBox();
     const from = v
       ? { x: v.x + v.w / 2, y: v.y }
       : { x: W / 2, y: groundTextY() };
@@ -1202,21 +1202,21 @@ export function createKnitFire({
     return groundTop + Math.max(30, (H - groundTop) * 0.18);
   }
   const isPhone = () => W < PHONE_W;
-  // 수의사 자리. 큰 화면은 땅 글씨 아래 가운데(아래 112px 을 비워 두는 높이에서만),
+  // 불꽃지기 자리. 큰 화면은 땅 글씨 아래 가운데(아래 112px 을 비워 두는 높이에서만),
   // 폰은 땅 왼쪽 — 키보드가 올라와 땅이 낮아져도 자리가 남는다
-  function vetBox() {
+  function keeperBox() {
     const phone = isPhone();
     if (!phone && H <= 620) return null;
     const s = phone ? 0.52 : 0.72;
-    const w = VET_ICON[0].length * CW * s;
-    const h = VET_ICON.length * CH * s;
+    const w = KEEPER_ICON[0].length * CW * s;
+    const h = KEEPER_ICON.length * CH * s;
     return phone
       ? { s, w, h, x: 14, y: Math.min(groundTextY() - 6, H - 10 - h) }
       : { s, w, h, x: W / 2 - w / 2, y: H - 14 - h };
   }
-  // 땅 글씨가 놓이는 가로 범위: 폰은 수의사 오른쪽
+  // 땅 글씨가 놓이는 가로 범위: 폰은 불꽃지기 오른쪽
   function textSpan() {
-    const v = isPhone() && vetBox();
+    const v = isPhone() && keeperBox();
     if (!v) return { cx: W / 2, w: W * 0.88 };
     const left = v.x + v.w + 10;
     return { cx: (left + W - 12) / 2, w: W - 12 - left };
@@ -1252,13 +1252,13 @@ export function createKnitFire({
         SPW,
         SPH
       );
-    // 땅에 서 있는 수의사
-    const vet = vetBox();
-    if (vet) {
-      const { s, x: ox, y: oy } = vet;
-      VET_ICON.forEach((row, r) =>
+    // 땅에 서 있는 불꽃지기
+    const keeper = keeperBox();
+    if (keeper) {
+      const { s, x: ox, y: oy } = keeper;
+      KEEPER_ICON.forEach((row, r) =>
         Array.from(row).forEach((ch, c) => {
-          const hex = VET_ICON_COLORS[ch];
+          const hex = KEEPER_ICON_COLORS[ch];
           if (!hex) return;
           gx.drawImage(
             sprite(hex, vOf(c + 7, r)),
@@ -1756,7 +1756,7 @@ export function createKnitFire({
       R.vy += R.g * dt;
       const w = R.sway;
       if (w) {
-        // 물결은 출발점에서 0 이 되게 해서 수의사 머리 위에서 시작
+        // 물결은 출발점에서 0 이 되게 해서 불꽃지기 머리 위에서 시작
         w.bx += R.vx * dt;
         w.by += R.vy * dt;
         R.x = clamp(
@@ -1892,7 +1892,7 @@ export function createKnitFire({
     litB = new Float32Array(COLS * ROWS);
     litH = new Array(COLS * ROWS);
     touched = [];
-    // 폰은 글씨가 수의사 옆에 놓여 아래 자리가 덜 필요하므로 땅을 40px 낮춘다
+    // 폰은 글씨가 불꽃지기 옆에 놓여 아래 자리가 덜 필요하므로 땅을 40px 낮춘다
     const gh =
       H < 560
         ? Math.max(120, H * 0.26)
@@ -2100,9 +2100,10 @@ export function createKnitFire({
     last = performance.now();
     raf = requestAnimationFrame(frame);
   }
-  logoImg.onload = boot;
-  logoImg.onerror = boot;
+  // 로고는 로고 모양 불꽃에만 쓰인다. 이미지 응답이 늦거나 오지 않아도 화면이 멈춰 있지 않게
+  // 기다리지 않고 시작하고, 그때까지 로고 불꽃은 하트로 대신한다.
   logoImg.src = KNIT_FIRE_LOGO_SRC;
+  raf = requestAnimationFrame(boot);
 
   return {
     setYarn(id) {
@@ -2139,8 +2140,6 @@ export function createKnitFire({
       cancelAnimationFrame(raf);
       clearInterval(holdTimer);
       clearTimeout(rT);
-      logoImg.onload = null;
-      logoImg.onerror = null;
       disposers.forEach((off) => off());
       parts = [];
       if (AC) AC.close();

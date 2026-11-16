@@ -311,39 +311,40 @@ export const SHAPE_DRAWERS: Record<string, Drawer> = {
 
 export const SHAPE_TYPES = Object.keys(SHAPE_DRAWERS);
 
-// 땅에 서 있는 수의사 (코 하나 = 글자 하나)
-export const VET_ICON_COLORS: Record<string, string> = {
-  H: '#4a342a', // 머리
+// 땅에 서 있는 불꽃지기 (코 하나 = 글자 하나)
+export const KEEPER_ICON_COLORS: Record<string, string> = {
+  N: '#f4ecdc', // 방울
+  H: '#c8453a', // 털모자
+  R: '#f4ecdc', // 모자 단
+  X: '#4a342a', // 머리
   S: '#f2c9a0', // 피부
   E: '#1c1a18', // 눈
   C: '#f0a39a', // 볼
   M: '#c8564e', // 입
-  W: '#f4ecdc', // 가운
-  B: '#218bfc', // 수술복
-  G: '#6b7480', // 청진기 줄
-  T: '#cfd6e2', // 청진기 판
-  P: '#2c4a78', // 바지
+  B: '#e9b949', // 목도리
+  J: '#3f7a5c', // 외투
+  P: '#3a3f52', // 바지
   K: '#1c1a18', // 신발
 };
 
-export const VET_ICON = [
+export const KEEPER_ICON = [
+  '.......NN.......',
   '....HHHHHHHH....',
   '...HHHHHHHHHH...',
-  '..HHHHHHHHHHHH..',
-  '..HHSSSSSSSSHH..',
-  '..HSSSSSSSSSSH..',
-  '..HSSESSSSESSH..',
+  '..RRRRRRRRRRRR..',
+  '..XSSSSSSSSSSX..',
+  '..XSSESSSSESSX..',
   '..SSSESSSSESSS..',
   '..SCSSSSSSSSCS..',
   '...SSSSMMSSSS...',
-  '....SSSSSSSS....',
-  '...WWGBBBBGWW...',
-  '..WWWGWBBWGWWW..',
-  '.WWWWGWWWWGWWWW.',
-  '.WWSWWGWWGWWSWW.',
-  '.SSWWWWTTWWWWSS.',
-  '...WWWWTTWWWW...',
-  '...WWWWWWWWWW...',
+  '...BBBBBBBBBB...',
+  '..JJJBBBJJJJJJ..',
+  '.JJJJJBBJJJJJJJ.',
+  '.JJJJJBBJJJJJJJ.',
+  '.JJSJJJJJJJJSJJ.',
+  '.SSJJJJJJJJJJSS.',
+  '...JJJJJJJJJJ...',
+  '...JJJJJJJJJJ...',
   '....PPP..PPP....',
   '....PPP..PPP....',
   '...KKKK..KKKK...',

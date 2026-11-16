@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 import AsciiDonut from '@/features/ascii/AsciiDonut';
+import AsciiRoom from '@/features/ascii/AsciiRoom';
 
 import styles from './page.module.css';
 
@@ -12,11 +12,8 @@ export const metadata: Metadata = {
 
 export default function Donut() {
   return (
-    <main className={styles.room}>
-      <Link href="/ascii" className={styles.back}>
-        아스키 목록
-      </Link>
+    <AsciiRoom>
       <AsciiDonut cols={80} rows={30} className={styles.art} />
-    </main>
+    </AsciiRoom>
   );
 }

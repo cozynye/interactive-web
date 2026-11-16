@@ -19,7 +19,7 @@ export interface KnitFireSettings {
 }
 
 export const SKIES: KnitFireSky[] = [
-  { id: 'vetple', n: '벳플', c: '#012751', g: '#101c2c' },
+  { id: 'indigo', n: '쪽빛', c: '#14213d', g: '#121a26' },
   { id: 'night', n: '밤', c: '#1d2644', g: '#18261f' },
   { id: 'mid', n: '자정', c: '#17171d', g: '#0f1512' },
   { id: 'violet', n: '보랏빛', c: '#2a2140', g: '#1a1a26' },
@@ -30,7 +30,7 @@ export const SKIES: KnitFireSky[] = [
 
 export const YARNS: KnitFireYarn[] = [
   { id: 'random', n: '랜덤', c: null },
-  { id: 'vetple', n: '벳플', c: ['#218bfc', '#8fc7ff', '#f4ecdc'] },
+  { id: 'frost', n: '서리', c: ['#6fb7e8', '#c4e4f7', '#f4ecdc'] },
   { id: 'red', n: '빨강', c: ['#e0453a'] },
   { id: 'orange', n: '주황', c: ['#ef7f34'] },
   { id: 'gold', n: '금실', c: ['#e9b949'] },
@@ -54,15 +54,15 @@ export const YARNS: KnitFireYarn[] = [
   { id: 'spark', n: '폭죽', c: ['#f4ecdc', '#e9b949', '#e0453a'] },
 ];
 
-export const KNIT_FIRE_STORAGE_KEY = 'vetplace-knitfire-v1';
-export const KNIT_FIRE_LOGO_SRC = '/asset/images/vet-logo.svg';
+export const KNIT_FIRE_STORAGE_KEY = 'playground-knitfire-v1';
+export const KNIT_FIRE_LOGO_SRC = '/asset/images/spark-mark.svg';
 // 불꽃 양 슬라이더 범위 (0 = 자동 꺼짐)
 export const KNIT_FIRE_AMOUNT_MAX = 10;
 export const KNIT_FIRE_TEXT_MAX = 40;
 
 export function loadKnitFireSettings(): KnitFireSettings {
   const settings: KnitFireSettings = {
-    sky: 'vetple',
+    sky: 'indigo',
     yarn: 'random',
     amount: 4,
     sound: true,

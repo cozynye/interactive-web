@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import SiteNav from '@/components/SiteNav';
 import AsciiDonut from '@/features/ascii/AsciiDonut';
 import { ASCII_LIST } from '@/features/ascii/asciiList';
+import AsciiStage from '@/features/ascii/stage/AsciiStage';
 
 import styles from './page.module.css';
 
@@ -15,6 +16,13 @@ export const metadata: Metadata = {
 
 // 카드에 넣는 작은 미리보기. 없는 항목은 이름만 보인다.
 const PREVIEWS: Record<string, ReactNode> = {
+  namsan: <AsciiStage name="namsan" />,
+  'starry-night': <AsciiStage name="starryNight" />,
+  galaxy: <AsciiStage name="galaxy" />,
+  tree: <AsciiStage name="tree" />,
+  fireworks: <AsciiStage name="fireworks" />,
+  rose: <AsciiStage name="rose" />,
+  bigbang: <AsciiStage name="bigbang" />,
   donut: <AsciiDonut cols={48} rows={18} className={styles.art} />,
 };
 

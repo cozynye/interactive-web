@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import FirePreview from '@/components/FirePreview';
 import SiteNav from '@/components/SiteNav';
-import AsciiDonut from '@/features/ascii/AsciiDonut';
+import AsciiStage from '@/features/ascii/stage/AsciiStage';
 
 import styles from './page.module.css';
 
@@ -34,7 +34,7 @@ export default function Home() {
             </div>
           </section>
 
-          <section className={`${styles.tile} ${styles.day}`}>
+          <section className={`${styles.tile} ${styles.night}`}>
             <div className={styles.copy}>
               <h2 className={styles.title}>아스키</h2>
               <p className={styles.sub}>글자만으로 그린 그림과 움직임.</p>
@@ -43,7 +43,7 @@ export default function Home() {
               </Link>
             </div>
             <div className={styles.stage}>
-              <AsciiDonut cols={48} rows={20} className={styles.donut} />
+              <AsciiStage name="starryNight" />
             </div>
           </section>
         </div>

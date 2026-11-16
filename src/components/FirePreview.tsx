@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import { YARNS } from '@/features/fire/knitFire.constant';
+import { createTicker, Ticker } from '@/lib/ticker';
 
 // 코 하나 크기 (불꽃놀이 본편과 같은 격자)
 const CW = 7;
@@ -36,7 +37,6 @@ function FirePreview({ className }: { className?: string }) {
     const ctx = cv?.getContext('2d');
     if (!cv || !ctx) return undefined;
 
-    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let W = 0;
     let H = 0;
     let cols = 0;
@@ -46,10 +46,8 @@ function FirePreview({ className }: { className?: string }) {
     let tint: string[] = [];
     let sparks: Spark[] = [];
     let rockets: Rocket[] = [];
-    let raf = 0;
-    let last = 0;
     let nextLaunch = 0;
-    let visible = true;
+    let ticker: Ticker | null = null;
 
     const stamp = (x: number, y: number, hex: string, v: number) => {
       const c = Math.floor(x / CW);
@@ -153,46 +151,27 @@ function FirePreview({ className }: { className?: string }) {
       rows = Math.ceil(H / CH);
       heat = new Float32Array(cols * rows);
       tint = new Array<string>(cols * rows).fill('');
-      if (still) drawStill();
-    };
-
-    const frame = (now: number) => {
-      raf = requestAnimationFrame(frame);
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      if (now > nextLaunch) {
-        launch();
-        nextLaunch = now + 500 + Math.random() * 700;
-      }
-      step(dt);
-      draw();
-    };
-    const play = () => {
-      if (still || raf || !visible) return;
-      last = performance.now();
-      raf = requestAnimationFrame(frame);
-    };
-    const pause = () => {
-      cancelAnimationFrame(raf);
-      raf = 0;
+      if (ticker?.state() === 'still') drawStill();
     };
 
     const ro = new ResizeObserver(resize);
     ro.observe(cv);
-    // 화면 밖으로 밀려나면 멈춘다
-    const io = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
-      if (visible) play();
-      else pause();
-    });
-    io.observe(cv);
     resize();
-    play();
+    ticker = createTicker(cv, {
+      frame: (t, dt) => {
+        if (t > nextLaunch) {
+          launch();
+          nextLaunch = t + 0.5 + Math.random() * 0.7;
+        }
+        step(Math.min(0.05, dt));
+        draw();
+      },
+      still: drawStill,
+    });
 
     return () => {
-      pause();
+      ticker?.dispose();
       ro.disconnect();
-      io.disconnect();
     };
   }, []);
 

@@ -153,6 +153,15 @@
     }
   }
 
+  /* 상단 막대 아래 왼쪽: 폰에서 막대가 꽉 차서 한 줄 내려 둔다 */
+  .home {
+    position: fixed;
+    top: calc(var(--safe-t) + 58px);
+    left: 12px;
+    z-index: 10;
+    text-decoration: none;
+  }
+
   .panel {
     position: fixed;
     top: calc(var(--safe-t) + 60px);

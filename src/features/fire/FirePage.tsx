@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useEffect, useRef, useState } from 'react';
 
 import './FirePage.css';
@@ -11,6 +12,7 @@ import {
   YARNS,
 } from './knitFire.constant';
 import { createKnitFire, KnitFire } from './knitFireEngine';
+import { useToast } from './useToast';
 
 type PanelType = 'yarn' | 'sky';
 
@@ -34,13 +36,12 @@ function FirePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const engineRef = useRef<KnitFire | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [settings, setSettings] = useState(loadKnitFireSettings);
   const [panel, setPanel] = useState<PanelType | null>(null);
   const [ground, setGround] = useState({ top: 0, hasText: false });
   const [isHintGone, setIsHintGone] = useState(false);
-  const [toast, setToast] = useState({ message: '', on: false });
+  const { toast, show: showToast } = useToast();
 
   useEffect(() => {
     if (!canvasRef.current || !textareaRef.current) return undefined;
@@ -57,29 +58,13 @@ function FirePage() {
     });
     engineRef.current = engine;
     // 들어오자마자 쏘는 법을 잠깐 알려준다
-    setToast({
-      message: '하늘을 클릭하거나 터치하면 폭죽이 올라와요',
-      on: true,
-    });
-    toastTimerRef.current = setTimeout(
-      () => setToast((prev) => ({ ...prev, on: false })),
-      3500
-    );
+    showToast('하늘을 클릭하거나 터치하면 폭죽이 올라와요', 3500);
     return () => {
       engine.destroy();
       engineRef.current = null;
-      clearTimeout(toastTimerRef.current);
     };
-  }, []);
+  }, [showToast]);
 
-  const showToast = (message: string) => {
-    setToast({ message, on: true });
-    clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(
-      () => setToast((prev) => ({ ...prev, on: false })),
-      2000
-    );
-  };
 
   const handleAmount = (amount: number) => {
     engineRef.current?.setAmount(amount);
@@ -109,7 +94,13 @@ function FirePage() {
   const yarn = YARNS.find((y) => y.id === settings.yarn);
 
   return (
-    <div className="fire-page">
+    // data-* 속성은 지금 화면이 어떤 상태인지 바깥(테스트·자동화)에서 읽으라고 적어 둔다
+    <div
+      className="fire-page"
+      data-panel={panel ?? 'none'}
+      data-ground={ground.hasText ? 'text' : 'empty'}
+      data-hint={isHintGone ? 'gone' : 'shown'}
+    >
       <canvas className="fire-canvas" ref={canvasRef} />
       <textarea
         className="text-input"
@@ -167,6 +158,11 @@ function FirePage() {
           </div>
         </div>
       </div>
+      {!panel && (
+        <Link href="/" className="btn home">
+          홈
+        </Link>
+      )}
       {panel === 'yarn' && (
         <div className="panel">
           <h4>불꽃 실</h4>
