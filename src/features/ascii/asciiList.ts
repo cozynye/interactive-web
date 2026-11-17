@@ -10,7 +10,7 @@ export const ASCII_LIST: AsciiItem[] = [
   {
     slug: 'zed',
     name: '제드 대 제드',
-    description: '2013년 결승 5세트의 제드 맞대결을 열여덟 초짜리 장면으로 다시 연출했다.',
+    description: '2013년 결승 5세트의 제드 맞대결을 18초짜리 장면으로 다시 연출했다.',
   },
   {
     slug: 'blackhole',
@@ -45,7 +45,7 @@ export const ASCII_LIST: AsciiItem[] = [
   {
     slug: 'rose',
     name: '장미',
-    description: '줄기가 자라고 봉오리가 여덟 초에 걸쳐 벌어진다.',
+    description: '줄기가 자라고 봉오리가 8초에 걸쳐 벌어진다.',
   },
   {
     slug: 'bigbang',
@@ -55,6 +55,6 @@ export const ASCII_LIST: AsciiItem[] = [
   {
     slug: 'donut',
     name: '도넛',
-    description: '글자 열두 개로 음영을 넣은 도넛이 두 축으로 돈다.',
+    description: '글자 12개로 음영을 넣은 도넛이 두 축으로 돈다.',
   },
 ];
