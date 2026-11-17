@@ -8,6 +8,11 @@ export interface AsciiItem {
 // 아스키 작품을 추가하면 여기에 한 줄 넣고 src/app/ascii/<slug>/page.tsx 를 만든다
 export const ASCII_LIST: AsciiItem[] = [
   {
+    slug: 'zed',
+    name: '제드 대 제드',
+    description: '2013년 결승 5세트의 제드 맞대결을 열여덟 초짜리 장면으로 다시 연출했다.',
+  },
+  {
     slug: 'blackhole',
     name: '블랙홀',
     description: '그림자를 두른 빛의 고리와 그 둘레를 도는 가스 원반.',

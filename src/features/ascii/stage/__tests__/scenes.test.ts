@@ -5,6 +5,7 @@ import { blackholePhase } from '../blackhole';
 import { Grid } from '../grid';
 import { rosePhase } from '../rose';
 import { SCENES } from '../scenes';
+import { zedPhase } from '../zed';
 
 // 장면을 화면 없이 돌려 본다: 격자 크기 두 가지로 12초씩
 const SIZES = [
@@ -93,5 +94,11 @@ describe('donutFrame', () => {
     expect(lines).toHaveLength(20);
     expect(lines.every((l) => l.length === 48)).toBe(true);
     expect(lines.join('').trim().length).toBeGreaterThan(100);
+  });
+});
+
+describe('제드 맞대결의 단계', () => {
+  it('밀기 → 표식 → 주고받기 → 추격 → 끝 순서로 가고 18초마다 되풀이한다', () => {
+    expect([0, 3.2, 5, 8, 9, 18.5].map(zedPhase)).toEqual(['push', 'mark', 'trade', 'chase', 'after', 'push']);
   });
 });
