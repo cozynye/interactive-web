@@ -34,6 +34,23 @@ export const smooth = (x: number) => {
   return v * v * (3 - 2 * v);
 };
 
+// 밝기를 64단계로 나눈 글자 줄, 어두움 → 밝음. 면의 굴곡을 명암으로 보여야 하는 물체는 RAMP 대신 이것을 쓴다.
+export const TONES = " .'`,:;-~+<>i!l?/|()1{}[rcvunxzjftLCJUYXZO0Qoahkbdpqwm*WMB8&%$#@";
+
+// 밝기(0~1)에 맞는 TONES 글자. floor는 가장 어두울 때 쓸 글자의 순번이고, 0이면 빈칸까지 내려간다.
+export const tone = (v: number, floor = 1) => TONES.charCodeAt(Math.max(floor, Math.min(TONES.length - 1, Math.floor(v * (TONES.length - 1)))));
+
+// 높이 차이로 면이 받는 빛(0~1)을 구한다. h는 그 자리, hx와 hy는 오른쪽과 아래로 e만큼 떨어진 자리의 높이다.
+// 빛은 왼쪽 위에서 비스듬히 오고, 평평한 면은 0.62가 나온다.
+export function lit(h: number, hx: number, hy: number, e: number) {
+  const nx = (h - hx) / e;
+  const ny = (h - hy) / e;
+  return Math.max(0, (-0.5 * nx - 0.6 * ny + 0.62) / Math.hypot(nx, ny, 1));
+}
+
+// 둥근 덩어리의 높이. d는 가운데에서 0, 가장자리에서 1이 되는 값(거리의 제곱)이다.
+export const dome = (d: number) => (d < 1 ? Math.sqrt(1 - d) : 0);
+
 // 글자 칸 격자. 장면은 매 프레임 여기에 밝기·색·글자를 써 넣고, 무대가 그대로 그린다.
 export class Grid {
   cols = 0;

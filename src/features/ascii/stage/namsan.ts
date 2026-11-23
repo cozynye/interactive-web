@@ -1,11 +1,12 @@
 import { code, Grid, hash, rng, Scene, smooth } from './grid';
 
 const TAU = Math.PI * 2;
-// 색은 강철빛 파랑, 따뜻한 금색, 숲의 초록에 경광등의 빨강 한 점만 쓴다
+// 색은 강철빛 파랑, 따뜻한 금색, 숲의 초록이 바탕이고 경광등의 빨강과 간판의 분홍만 점으로 들어간다
 const STEEL = [150, 172, 226];
 const WARM = [255, 214, 120];
 const IVORY = [255, 242, 216];
 const GREEN = [78, 138, 104];
+const NEON_WARM = [255, 168, 72];
 
 // 처음 한 번 펼쳐지는 순서(초): 타워가 아래에서 위로 그려지고, 전망대에 불이 들어오고, 경광등이 켜진 뒤 첫 불꽃이 터진다
 const TOWER = [1.8, 5.4];
@@ -44,6 +45,11 @@ export function createNamsan(): Scene {
   // 방금 터진 불꽃의 밝기 (윤곽선과 전망대가 받는 빛)
   let flash = 0;
   let letters = 0;
+  // 산 아래 건물들. 화면 폭을 똑같이 나눠 서고, x는 그 가운데(화면 폭에 대한 비율), 높이는 줄 단위다. 가운데는 낮고 가장자리로 갈수록 높다.
+  const towers = Array.from({ length: 26 }, (_, i) => {
+    const x = (i + 0.5) / 26;
+    return { x, h: 1 + Math.abs(x - 0.5) * 16 + rand() * 5, warm: rand() < 0.6 };
+  });
 
   return {
     // 다른 장면보다 칸을 잘게 쪼갠다
@@ -73,27 +79,96 @@ export function createNamsan(): Scene {
         g.put(hash(i, 1) * cols, hash(i, 2) * base, 9, (big ? 0.3 + 0.4 * tw : 0.1 + 0.16 * tw) * sky, STEEL[0], STEEL[1], STEEL[2], code(big ? '+' : '.'));
       }
 
-      // 남산: 타워 발치가 가장 높은 완만한 숲. 위는 나무가 또렷하고 아래로 갈수록 점으로 흩어진다.
+      // 남산: 능선 세 겹. 겹마다 윗선은 기울기에 맞는 빗금으로 긋고, 안은 나무(A)와 수풀(^)이 뭉쳐서 번갈아 나온다.
       const depth = rows * 0.4;
-      for (let c = 0; c < cols; c++) {
+      const ridge = (L: number, c: number) => {
         const d = (c - cx) / (cols * 0.5);
-        const shown = smooth((hillK - Math.abs(d)) / 0.12);
-        if (shown <= 0) continue;
-        const ridge = base + Math.round(d * d * rows * 0.1 + Math.sin(c * 0.13) * 0.7 * k);
-        for (let r = ridge; r < Math.min(rows, ridge + depth); r++) {
-          const w = hash(c * 1.3, r * 2.7);
-          const far = (r - ridge) / depth;
-          if (w < 0.1 + 0.55 * far * far) continue;
-          // 가로등 불빛이 드문드문 박혀 있다
-          if (w > 0.994 && far < 0.7 && lit > hash(c, 3)) {
-            g.put(c, r, 6, 0.75 + 0.2 * Math.sin(t * 2 + c), WARM[0], WARM[1], WARM[2], code('o'));
-            continue;
+        const bumps = Math.sin(c * 0.13) * 0.7 + L * (Math.sin((c / ax) * 0.42 + L * 2.3) * 1.1 + Math.sin((c / ax) * 1.1 + L) * 0.5);
+        return base + Math.round(L * depth * 0.2 + d * d * rows * (0.1 + 0.05 * L) + bumps * k);
+      };
+      for (let L = 0; L < 3; L++)
+        for (let c = 0; c < cols; c++) {
+          const d = (c - cx) / (cols * 0.5);
+          const shown = smooth((hillK - Math.abs(d)) / 0.12);
+          if (shown <= 0) continue;
+          const top0 = ridge(L, c);
+          const slope = ridge(L, c + 1) - ridge(L, c - 1);
+          const end = Math.min(rows, base + depth);
+          for (let r = top0; r < end; r++) {
+            const j = r - top0;
+            const far = (r - base) / depth;
+            const w = hash(c * 1.3, r * 2.7 + L);
+            const glowK = (1 - far * 0.5) * (1 + flash * 0.4) * shown;
+            if (j === 0) {
+              g.put(c, r, 6 - L * 0.2, 0.5 * glowK, GREEN[0] + 40, GREEN[1] + 40, GREEN[2] + 30, code(slope < 0 ? '/' : slope > 0 ? '\\' : '^'));
+              continue;
+            }
+            // 가로등 불빛이 드문드문 박혀 있다
+            if (w > 0.994 && far < 0.7 && lit > hash(c, 3)) {
+              g.put(c, r, 6 - L * 0.2, 0.75 + 0.2 * Math.sin(t * 2 + c), WARM[0], WARM[1], WARM[2], code('o'));
+              continue;
+            }
+            const n = Math.sin((c / ax) * 0.9 + j * 1.3 + L * 1.7) + Math.sin((c / ax) * 0.23 - j * 0.7 + L);
+            const tree = n > 0.45 ? 'A' : n > -0.7 ? '^' : w > 0.5 ? 'n' : '.';
+            const lum = (tree === 'A' ? 0.3 + w * 0.12 : tree === '^' ? 0.2 + w * 0.08 : 0.14) * (0.8 + L * 0.12) * glowK;
+            g.put(c, r, 6 - L * 0.2, lum, GREEN[0], GREEN[1], GREEN[2], code(tree));
           }
-          const tree = w > 0.86 - far * 0.3 ? 'A' : w > 0.7 - far * 0.2 ? '^' : w > 0.6 ? '*' : w > 0.4 ? ':' : w > 0.25 ? '.' : ',';
-          const lum = (far < 0.5 ? 0.3 + w * 0.2 : 0.2 + w * 0.12) * (1 - far * 0.55) * (1 + flash * 0.4) * shown;
-          g.put(c, r, 6, lum, GREEN[0], GREEN[1], GREEN[2], code(tree));
+        }
+
+      // 산허리를 도는 길의 가로등 줄과, 왼쪽 아래에서 타워 발치로 오르는 케이블카
+      if (lit > 0) {
+        for (let c = Math.round(cx + cols * 0.08); c < cx + cols * 0.36; c++) {
+          if (c % 7 === 0) continue;
+          g.put(c, ridge(1, c) + Math.round(1.5 * k), 5.5, 0.55 * lit * (0.8 + 0.2 * Math.sin(t * 1.3 + c * 0.4)), WARM[0], WARM[1] - 30, WARM[2] - 40, code('='));
+        }
+        const x0 = cx - cols * 0.37;
+        const y0 = base + depth * 0.52;
+        const x1 = cx - 5 * ax;
+        const y1 = base + 1.5 * k;
+        const n = Math.round((x1 - x0) / 2);
+        for (let i = 0; i <= n; i++)
+          g.put(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, 5.4, 0.3 * lit, STEEL[0], STEEL[1], STEEL[2], code(i % 9 === 0 ? '|' : '.'));
+        // 케이블카 두 대가 엇갈려 오르내린다
+        for (const ph of [0, Math.PI]) {
+          const p = 0.5 + 0.5 * Math.sin(t * 0.11 + ph);
+          const bx = Math.round(x0 + (x1 - x0) * p);
+          const by = Math.round(y0 + (y1 - y0) * p) + 1;
+          '[#]'.split('').forEach((ch, i) => g.put(bx - 1 + i, by, 5.3, 0.85 * lit, WARM[0], WARM[1], WARM[2], code(ch)));
         }
       }
+
+      // 산 아래 동네: 건물이 가장자리부터 솟고 창에 불이 하나씩 켜진다
+      const street = Math.round(rows * 0.84);
+      towers.forEach((b, bi) => {
+        const rise = smooth((t - 1.2 - (1 - Math.abs(b.x - 0.5) * 2) * 1.6) / 1.4);
+        if (rise <= 0) return;
+        // 건물은 틈 없이 붙어 서서 산자락을 가린다
+        const bx0 = Math.round((bi / towers.length) * cols);
+        const bx1 = Math.round(((bi + 1) / towers.length) * cols) - 1;
+        const roof = Math.round(rows - (rows - (street - b.h * k)) * rise);
+        const glass = b.warm ? NEON_WARM : IVORY;
+        // 멀리 있는 건물이라 벽은 그리지 않고 지붕 선과 창의 불빛만 남긴다
+        for (let r = roof; r < rows; r++)
+          for (let c = bx0; c <= bx1; c++) {
+            const wc = c - bx0;
+            const wr = r - roof;
+            if (wr === 0) {
+              g.put(c, r, 5, (0.2 + 0.3 * flash) * rise, STEEL[0], STEEL[1], STEEL[2], code('_'));
+              continue;
+            }
+            // 창은 한 칸 걸러 한 칸, 한 줄 걸러 한 줄이다
+            const pane = wc % 2 === 1 && wr % 2 === 0;
+            const id = hash(bi * 31 + wc, wr * 1.7);
+            // 가끔 꺼지고 켜지는 창이 섞여 있다
+            const live = hash(bi + wc, wr + Math.floor(t * 0.08 + id * 9)) < 0.72;
+            if (pane && live && id < 0.62 && t > 3.6 + id * 5)
+              g.put(c, r, 5, 0.34 + 0.4 * id + 0.08 * Math.sin(t * (0.6 + id * 2) + c), glass[0], glass[1], glass[2], code(id < 0.2 ? ':' : id < 0.45 ? '.' : "'"));
+            // 불 꺼진 자리도 빈칸으로 덮어서 뒤의 산이 비치지 않게 한다
+            else g.put(c, r, 5, 0, 0, 0, 0, code(' '));
+          }
+        // 높은 건물 옥상에는 깜박이는 항공등
+        if (b.h > 11 && rise >= 1) g.put((bx0 + bx1) >> 1, roof - 1, 5, 0.3 + 0.6 * Math.pow(0.5 + 0.5 * Math.sin(t * 2.2 + bi), 4), 255, 96, 96, code('*'));
+      });
 
       // 타워: 경광등 → 첨탑 → 전망대(덮개·창·치마) → 기둥 → 받침
       if (t >= BEACON_AT) {

@@ -46,6 +46,23 @@ export default function Home() {
               <AsciiStage name="starryNight" />
             </div>
           </section>
+
+          <section className={`${styles.tile} ${styles.night}`}>
+            <div className={styles.copy}>
+              <h2 className={styles.title}>아스키 게임</h2>
+              <p className={styles.sub}>
+                글자로 그린 풀밭에서 용과 싸운다.
+                <br />
+                붉게 차오르는 바닥을 피하고 틈이 날 때 벤다.
+              </p>
+              <Link href="/game" className={styles.pill}>
+                글자 평원의 용 하기
+              </Link>
+            </div>
+            <div className={styles.stage}>
+              <AsciiStage name="dragon" />
+            </div>
+          </section>
         </div>
       </main>
     </>

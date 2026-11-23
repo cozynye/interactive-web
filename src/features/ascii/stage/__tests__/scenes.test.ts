@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { donutFrame } from '../../donut';
 import { blackholePhase } from '../blackhole';
-import { Grid } from '../grid';
+import { orangesOn } from '../capybara';
+import { dome, Grid, lit, tone, TONES } from '../grid';
+import { knightPhase } from '../knight';
 import { rosePhase } from '../rose';
 import { SCENES } from '../scenes';
+import { sigilPhase } from '../sigil';
 import { zedPhase } from '../zed';
 
 // 장면을 화면 없이 돌려 본다: 격자 크기 두 가지로 12초씩
@@ -100,5 +103,37 @@ describe('donutFrame', () => {
 describe('제드 맞대결의 단계', () => {
   it('밀기 → 표식 → 주고받기 → 추격 → 끝 순서로 가고 18초마다 되풀이한다', () => {
     expect([0, 3.2, 5, 8, 9, 18.5].map(zedPhase)).toEqual(['push', 'mark', 'trade', 'chase', 'after', 'push']);
+  });
+});
+
+describe('새 장면의 단계', () => {
+  it('마법진은 방울 → 마법진 → 솟음 → 떠 있음 순서로 넘어가고 되돌아가지 않는다', () => {
+    expect([0, 2, 6, 9, 60].map(sigilPhase)).toEqual(['drop', 'circle', 'rise', 'hover', 'hover']);
+  });
+
+  it('기사는 땅 → 몸 → 검의 빛 → 바람 순서로 넘어간다', () => {
+    expect([0, 3, 5, 8].map(knightPhase)).toEqual(['ground', 'body', 'glint', 'wind']);
+  });
+
+  it('귤은 9초마다 하나씩 셋까지 쌓였다가 재채기에 다 떨어진다', () => {
+    expect([0, 6, 15, 24, 32, 36, 40].map(orangesOn)).toEqual([0, 1, 2, 3, 0, 0, 1]);
+  });
+});
+
+describe('명암 도구', () => {
+  it('왼쪽 위를 보는 비탈이 평평한 면보다 밝고, 오른쪽 아래를 보는 비탈은 어둡다', () => {
+    const flat = lit(1, 1, 1, 1);
+    expect(lit(1, 2, 2, 1)).toBeGreaterThan(flat);
+    expect(lit(1, 0, 0, 1)).toBeLessThan(flat);
+  });
+
+  it('밝기는 범위를 벗어나도 글자 줄 안에서 고른다', () => {
+    expect(tone(-1)).toBe(TONES.charCodeAt(1));
+    expect(tone(2)).toBe(TONES.charCodeAt(TONES.length - 1));
+    expect(tone(0, 0)).toBe(32);
+  });
+
+  it('둥근 덩어리는 가운데가 가장 높고 가장자리 밖은 0이다', () => {
+    expect([0, 0.75, 1, 4].map(dome)).toEqual([1, 0.5, 0, 0]);
   });
 });

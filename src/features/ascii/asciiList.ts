@@ -8,6 +8,21 @@ export interface AsciiItem {
 // 아스키 작품을 추가하면 여기에 한 줄 넣고 src/app/ascii/<slug>/page.tsx 를 만든다
 export const ASCII_LIST: AsciiItem[] = [
   {
+    slug: 'knight',
+    name: '기사',
+    description: '모닥불 앞에 앉은 기사의 스카프와 망토가 바람 세기를 따라 날린다.',
+  },
+  {
+    slug: 'sigil',
+    name: '마법진',
+    description: '방울이 떨어진 자리에 마법진이 그려지고 그 위로 수정이 솟는다.',
+  },
+  {
+    slug: 'capybara',
+    name: '카피바라',
+    description: '유자탕에 앉은 카피바라의 머리에 귤이 하나씩 쌓인다.',
+  },
+  {
     slug: 'zed',
     name: '제드 대 제드',
     description: '2013년 결승 5세트의 제드 맞대결을 18초짜리 장면으로 다시 연출했다.',
@@ -20,7 +35,7 @@ export const ASCII_LIST: AsciiItem[] = [
   {
     slug: 'namsan',
     name: '남산',
-    description: '남산타워를 바라보는 두 사람의 뒷모습 위로 불꽃이 터진다.',
+    description: '능선 세 겹의 남산과 불 켜진 동네 너머로 타워를 바라보는 두 사람.',
   },
   {
     slug: 'starry-night',
