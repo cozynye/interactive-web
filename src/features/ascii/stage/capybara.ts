@@ -28,11 +28,13 @@ const FIRST_ORANGE = 4.6;
 const YUZU_AT = 6.4;
 const STEAM_AT = 6;
 const SNOW_AT = 8.5;
-// 귤이 쌓였다가 떨어지는 한 주기(초). 9초마다 하나씩 셋까지 쌓이고, 재채기에 다 떨어진 뒤 쉰다.
+// 귤이 쌓였다가 떨어지는 한 주기(초). 9초마다 하나씩 셋까지 쌓이고, 다 쌓이면 고개를 조금씩 흔들기 시작해서 위의 귤부터 하나씩 굴러떨어진 뒤 쉰다.
 const CYCLE = 34;
 const EVERY = 9;
-const SNEEZE = 27;
 const FALL = 1;
+const WOBBLE = 21;
+// 귤마다 굴러떨어지는 시각. 아래에서 k번째 귤이 DROPS[k]에 떨어진다.
+const DROPS = [27, 25.8, 24.5];
 
 // 유자가 떠 있는 자리 (x, 물 아래로 내려간 줄 수)
 const YUZUS = [
@@ -49,14 +51,21 @@ const YUZUS = [
 export function orangesOn(t: number) {
   if (t < FIRST_ORANGE + FALL) return 0;
   const u = (t - FIRST_ORANGE) % CYCLE;
-  if (u >= SNEEZE) return 0;
-  return Math.min(3, Math.floor((u - FALL) / EVERY) + 1);
+  let n = 0;
+  for (let k = 0; k < 3; k++) if (u >= k * EVERY + FALL && u < DROPS[k]) n++;
+  return n;
+}
+
+// 고개가 좌우로 흔들리는 정도. 조금씩 커지다가 마지막 귤이 떨어지면 잦아든다.
+function swayAt(u: number) {
+  if (u < WOBBLE) return 0;
+  return smooth((u - WOBBLE) / 3.5) * (1 - smooth((u - DROPS[0]) / 1.5)) * Math.sin((u - WOBBLE) * 2.7);
 }
 
 // 가로와 세로 반지름이 다른 둥근 네모. pow가 클수록 모서리가 각진다.
 const box = (x: number, y: number, rx: number, ry: number, pow: number) => Math.pow(Math.abs(x / rx), pow) + Math.pow(Math.abs(y / ry), pow);
 
-// 유자탕에 앉은 카피바라. 머리에 귤이 하나씩 쌓이다가 재채기 한 번에 다 떨어진다.
+// 유자탕에 앉은 카피바라. 머리에 귤이 하나씩 쌓이고, 다 쌓이면 고개를 흔들어 하나씩 떨어뜨린다.
 // 처음에는 코끝에서 엉덩이 쪽으로 몸이 그려지고, 귤과 유자가 차례로 떨어진다.
 export function createCapybara(): Scene {
   let letters = 0;
@@ -75,15 +84,15 @@ export function createCapybara(): Scene {
       const breath = 1 + 0.02 * Math.sin(t * 1.3);
 
       const u = t < FIRST_ORANGE ? -1 : (t - FIRST_ORANGE) % CYCLE;
-      // 재채기: 고개가 한 번 크게 들렸다 내려온다
-      const sneeze = u >= SNEEZE ? Math.exp(-(u - SNEEZE) * 4) * Math.sin((u - SNEEZE) * 16) : 0;
+      // 귤이 다 쌓이면 고개가 좌우로 흔들린다
+      const hx = swayAt(u) * 0.9;
       // 귤이 얹힐 때마다 고개가 눌렸다 돌아온다
       let nod = 0;
       for (let k = 0; k < 3; k++) {
         const since = u - k * EVERY - FALL;
         if (u >= 0 && since > 0 && since < 2) nod += Math.exp(-since * 5) * Math.cos(since * 14) * 0.6;
       }
-      const hy = -9.4 + bob + nod - sneeze * 1.4;
+      const hy = -9.4 + bob + nod - Math.abs(hx) * 0.3;
       const twitch = (t / 6.1) % 1 < 0.04 ? 0.5 : 0;
 
       // 몸의 높이: 등, 어깨, 머리, 뭉툭한 주둥이, 귀를 겹친다. 물 아래는 보이지 않는다.
@@ -92,10 +101,10 @@ export function createCapybara(): Scene {
           ? 0
           : Math.max(
               7 * dome(box(x - 6, y + 2 - bob, 13.5, 8.6 * breath, 2.4)),
-              6.4 * dome(box(x + 5.5, y + 4.6 - bob, 7.6, 6.6, 2)),
-              5.6 * dome(box(x + 11, y - hy, 6.8, 4.7, 2.6)),
-              5.2 * dome(box(x + 15.4, y - hy - 1, 3.7, 3.7, 3)),
-              3 * dome(box(x + 6.2 - twitch, y - hy + 4.7, 1.6, 1.5, 2))
+              6.4 * dome(box(x + 5.5 - hx * 0.35, y + 4.6 - bob, 7.6, 6.6, 2)),
+              5.6 * dome(box(x + 11 - hx, y - hy, 6.8, 4.7, 2.6)),
+              5.2 * dome(box(x + 15.4 - hx, y - hy - 1, 3.7, 3.7, 3)),
+              3 * dome(box(x + 6.2 - twitch - hx, y - hy + 4.7, 1.6, 1.5, 2))
             );
 
       // 몸이 코끝(왼쪽)에서 엉덩이 쪽으로 그려진다
@@ -125,14 +134,14 @@ export function createCapybara(): Scene {
       }
 
       relief(spot, [-20, -16, 21, 0.3], bodyAt, { pal: FUR, z: 2, fine: true, show: shown });
-      // 얼굴: 눈과 콧구멍, 입은 털보다 어둡게 파서 그린다. 눈은 가끔 감기고, 귤이 얹히거나 재채기할 때도 감긴다.
+      // 얼굴: 눈과 콧구멍, 입은 털보다 어둡게 파서 그린다. 눈은 가끔 감기고, 귤이 얹히거나 굴러떨어질 때도 감긴다.
       const face = (x: number, y: number, ch: string, lum = 0.35) => {
-        if (shown(x) > 0.5) g.put(ox + x * ax, water + y * s, 1, lum, DARK[0], DARK[1], DARK[2], code(ch));
+        if (shown(x) > 0.5) g.put(ox + (x + hx) * ax, water + y * s, 1, lum, DARK[0], DARK[1], DARK[2], code(ch));
       };
-      const blink = (t / 4.3) % 1 < 0.035 || Math.abs(nod) > 0.15 || Math.abs(sneeze) > 0.1;
+      const blink = (t / 4.3) % 1 < 0.035 || Math.abs(nod) > 0.15 || DROPS.some((at) => u >= at && u < at + 0.35);
       for (let i = 0; i < 5; i++)
         for (let j = 0; j < 2; j++) face(-11.2 + i / ax, hy - 1.9 + j / s, blink ? (j ? '-' : ' ') : i === 0 || i === 4 ? (j ? "'" : '.') : ' ');
-      if (!blink) g.put(ox - 11.2 * ax + 1, water + (hy - 1.9) * s, 0.9, shown(-10.9), IVORY[0], IVORY[1], IVORY[2], code('o'));
+      if (!blink) g.put(ox + (hx - 11.2) * ax + 1, water + (hy - 1.9) * s, 0.9, shown(-10.9), IVORY[0], IVORY[1], IVORY[2], code('o'));
       face(-18.2, hy - 0.4, ' ');
       for (let x = -18.4; x < -14.6; x += 1 / ax) face(x, hy + 3.3 + (x + 18.4) * 0.12, '_');
       face(-5.9 + twitch, hy - 4.6, ':');
@@ -152,7 +161,9 @@ export function createCapybara(): Scene {
         const since = u - k * EVERY;
         if (since < 0) continue;
         const rest = hy - 4.6 - R * 0.85 - k * R * 1.75;
-        let x = -11 + (k % 2 ? 0.5 : -0.3);
+        // 흔들릴 때 위에 얹힌 귤일수록 한 박자 늦게, 더 크게 쏠린다
+        const lean = (v: number) => swayAt(v) * 0.9 + swayAt(v - 0.2) * 0.6 * (k + 1);
+        let x = -11 + (k % 2 ? 0.5 : -0.3) + lean(Math.min(u, DROPS[k]));
         let y = rest;
         let size = 1;
         let squash = 0;
@@ -160,16 +171,16 @@ export function createCapybara(): Scene {
           const p = since / FALL;
           y = -40 + (rest + 40) * p * p;
           size = 0.08 + 0.92 * smooth(p * 1.3);
-        } else if (u < SNEEZE) {
+        } else if (u < DROPS[k]) {
           squash = Math.exp(-(since - FALL) * 6) * Math.cos((since - FALL) * 18) * 0.22;
         } else {
-          // 재채기에 튕겨 나가 물에 빠진다
-          const q = u - SNEEZE;
-          x -= (5 + k * 4) * q;
-          y = rest - (9 + k * 3) * q + 26 * q * q;
+          // 쏠려 있던 쪽으로 굴러떨어져 물에 빠진다
+          const q = u - DROPS[k];
+          x += (lean(DROPS[k]) < 0 ? -1 : 1) * (3 * q + 7 * q * q);
+          y = rest - 3 * q + 24 * q * q;
           if (y > 1) {
             // 빠진 자리에 물이 튄다
-            const since2 = q - (9 + k * 3 + Math.sqrt(Math.pow(9 + k * 3, 2) + 104 * (1 - rest))) / 52;
+            const since2 = q - (3 + Math.sqrt(9 + 96 * (1 - rest))) / 48;
             if (since2 < 0.7)
               for (let i = -3; i <= 3; i++)
                 g.add(ox + (x + i * (0.6 + since2 * 3)) * ax, water - (1.5 - Math.abs(i) * 0.4) * Math.sin(Math.min(1, since2 / 0.7) * Math.PI) * 3 * s, 0.8 * (1 - since2 / 0.7), IVORY[0], IVORY[1], IVORY[2], code("'"));

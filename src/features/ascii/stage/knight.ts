@@ -1,11 +1,26 @@
 import { code, Grid, hash, Scene, smooth, tone } from './grid';
-import { bakeKnight, BAND, BH, BW, CLOTH, STEEL, X0, X1, Y0, Y1 } from './knightModel';
+import { bakeKnight, BAND, BLADE_X, BH, BW, CLOTH, FACE, LEATHER, MAIL, ROCK, STEEL, X0, X1, Y0, Y1 } from './knightModel';
 
 const TAU = Math.PI * 2;
 // 색은 흰 빛 하나와 눈을 가린 띠의 빨강 하나만 쓴다
 const IVORY = [244, 240, 232];
 const SHADE = [150, 158, 178];
 const RED = [232, 40, 44];
+
+// 재질마다 글자 묶음이 다르다(어두운 쪽 → 밝은 쪽). 쇠는 기호, 천은 세로로 선 글자, 사슬은 둥근 글자, 바위는 거친 글자라서 밝기가 같아도 재질이 갈린다.
+// 글자는 재질과 형태를 맡고 밝기는 색이 맡는다.
+const RAMPS: string[] = [];
+RAMPS[CLOTH] = '.,:;!i|1tfLEB';
+RAMPS[STEEL] = '.:-=+*%#@';
+RAMPS[BAND] = '=+*%#@';
+RAMPS[FACE] = '.:;=+ox';
+RAMPS[LEATHER] = '.-~=zZ';
+RAMPS[ROCK] = '.,:;^?%&';
+RAMPS[MAIL] = '.:coO0Q8';
+// 사슬은 한 칸 건너 다른 글자를 써서 고리가 엮인 것처럼 보인다
+const LINKS = '.:<xX%&#';
+// 앞뒤 덩어리의 깊이 차이가 이보다 크면 가장자리로 본다 (모형 단위)
+const RIM = 0.06;
 
 // 처음 한 번 펼쳐지는 순서(초): 풀밭이 깔림 → 기사가 위에서 아래로 드러남 → 검에 빛이 흐름 → 바람이 불어 띠가 풀림
 const BODY = [1.2, 4.6];
@@ -85,15 +100,9 @@ function ribbon(g: Grid, ox: number, oy: number, u: number, rb: Ribbon, t: numbe
 // 검을 세워 쥐고 앉은 기사. 눈을 가린 붉은 띠와 옷자락이 바람 세기를 따라 날린다.
 // 입체 모형을 한 번 구워서 밝기를 글자로 옮기므로 갑옷과 천의 굴곡이 명암으로 보인다.
 export function createKnight(): Scene {
-  const baked = bakeKnight();
+  let baked = bakeKnight(0);
   let letters = 0;
-  // 검날의 가운데(모형 x). 무릎 높이의 줄에서 맨 왼쪽에 이어진 강철 칸들의 한가운데다.
-  const row = Math.floor(((Y1 - 0.6) / (Y1 - Y0)) * BH) * BW;
-  let i0 = 0;
-  while (i0 < BW && baked.mat[row + i0] !== STEEL) i0++;
-  let i1 = i0;
-  while (i1 < BW && baked.mat[row + i1] === STEEL) i1++;
-  const blade = X0 + ((i0 + i1) / 2 / BW) * (X1 - X0);
+  let pick = new Int32Array(0);
 
   return {
     // 명암이 글자로 읽히려면 칸이 잘아야 한다
@@ -128,47 +137,87 @@ export function createKnight(): Scene {
       }
 
       // 기사: 구워 둔 그림을 칸마다 읽어 글자로 옮긴다. 위에서 아래로 드러난다.
+      // 모형은 프레임마다 조금씩 나눠 굽는다. 드러나는 줄보다 굽는 줄이 앞서간다.
+      if (baked.rows < BH) baked = bakeKnight(7);
       const line = Y1 - ((t - BODY[0]) / (BODY[1] - BODY[0])) * (Y1 - Y0 + 0.3);
       // 검의 날을 따라 가끔 빛이 흐른다
       const glint = ((t - GLINT_AT) / 5.5) % 1;
-      const c0 = Math.floor(ox + X0 * ax);
-      const c1 = Math.ceil(ox + X1 * ax);
-      for (let r = Math.floor(gy - Y1 * u); r <= gy - Y0 * u && t > BODY[0]; r++) {
+      const c0 = Math.max(0, Math.floor(ox + X0 * ax));
+      const c1 = Math.min(cols - 1, Math.ceil(ox + X1 * ax));
+      const r0 = Math.max(0, Math.floor(gy - Y1 * u));
+      const r1 = Math.min(rows - 1, Math.floor(gy - Y0 * u));
+      const w = c1 - c0 + 3;
+      // 먼저 칸마다 구운 그림의 어느 점을 읽을지 정해 둔다. 가장자리를 찾으려면 옆 칸이 무엇인지 알아야 한다.
+      if (pick.length < w * (r1 - r0 + 3)) pick = new Int32Array(w * (r1 - r0 + 3));
+      pick.fill(-1);
+      for (let r = r0; r <= r1 && t > BODY[0]; r++) {
         const y = (gy - r) / u;
-        if (y > Y1 || y < Y0) continue;
-        const shown = smooth((y - line) / 0.16);
-        if (shown <= 0) continue;
+        if (y > Y1 || y < Y0 || y < line) continue;
         // 숨을 쉬면 윗몸이 아주 조금 오르내린다
         const by = y - breath * 0.006 * smooth((y - 0.7) / 0.8);
         const j = Math.floor(((Y1 - by) / (Y1 - Y0)) * BH);
         if (j < 0 || j >= BH) continue;
+        // 아직 굽지 않은 줄을 그려야 하면 거기까지는 기다렸다가 그린다
+        if (j >= baked.rows) baked = bakeKnight();
         for (let c = c0; c <= c1; c++) {
           const x = (c - ox) / ax;
           // 오른쪽 아래로 늘어진 옷자락은 바람에 밀린다
           const flap = gust * 0.035 * smooth((x - 0.15) / 0.5) * smooth((0.9 - y) / 0.6) * (Math.sin(y * 13 - t * 3.3) + 0.6);
           let i = Math.floor(((x - flap - X0) / (X1 - X0)) * BW);
           if (i < 0 || i >= BW) continue;
-          let m = baked.mat[j * BW + i];
-          if (m !== CLOTH && flap) {
-            i = Math.floor(((x - X0) / (X1 - X0)) * BW);
-            m = baked.mat[j * BW + i];
-          }
-          if (m === 255) continue;
-          let l = baked.lum[j * BW + i];
+          if (baked.mat[j * BW + i] !== CLOTH && flap) i = Math.min(BW - 1, Math.max(0, Math.floor(((x - X0) / (X1 - X0)) * BW)));
+          const m = baked.mat[j * BW + i];
           // 해진 옷단
-          if (m === CLOTH && y < 0.2 && hash(c, 5) > 0.35 + y * 3) continue;
+          if (m === 255 || (m === CLOTH && y < 0.2 && hash(c, 5) > 0.35 + y * 3)) continue;
+          pick[(r - r0 + 1) * w + c - c0 + 1] = j * BW + i;
+        }
+      }
+      // 옆 칸이 비었거나 훨씬 뒤에 있으면 1
+      const behind = (at: number, z: number) => (pick[at] < 0 || z - baked.far[pick[at]] > RIM ? 1 : 0);
+      for (let r = r0; r <= r1; r++) {
+        const y = (gy - r) / u;
+        const shown = smooth((y - line) / 0.16);
+        for (let c = c0; c <= c1; c++) {
+          const at = (r - r0 + 1) * w + c - c0 + 1;
+          const k = pick[at];
+          if (k < 0) continue;
+          const x = (c - ox) / ax;
+          const m = baked.mat[k];
+          let l = baked.lum[k];
           // 검날 가운데에는 홈이 파여 있어서 양쪽 날만 밝다
-          if (m === STEEL && y < 1.2 && Math.abs(x - blade) < 0.5 / ax) l *= 0.4;
+          if (m === STEEL && y < 1.2 && Math.abs(x - BLADE_X) < 0.5 / ax) l *= 0.4;
           if (m === STEEL && glint > 0 && glint < 0.2 && x < -0.55) l += Math.exp(-Math.pow((y - glint * 8) / 0.07, 2)) * 0.8;
           // 그려지는 줄은 하얗게 빛난다
           const edge = y - line < 0.05 ? 1 : 0;
           // 띠는 그늘에서도 붉게 보인다
           if (m === BAND) l = 0.6 + 0.4 * l;
-          const v = Math.min(1, Math.max(0, l * 1.15 + (hash(c * 1.3, r * 2.1) - 0.5) * 0.12 + edge));
+          // 챙 그늘에 든 얼굴도 코와 턱은 알아볼 수 있게 한다
+          if (m === FACE) l = 0.3 + 0.7 * l;
+          let v = Math.min(1, Math.max(0, l * 1.15 + edge));
+          // 글자: 재질의 글자 묶음에서 밝기에 맞는 것을 고른다. 단계의 경계는 칸마다 조금씩 흩어서 띠가 지지 않게 한다.
+          const ramp = m === MAIL && (c + r) % 2 ? LINKS : RAMPS[m];
+          let ch = ramp.charCodeAt(Math.max(0, Math.min(ramp.length - 1, Math.floor((v + (hash(c * 1.3, r * 2.1) - 0.5) / ramp.length) * ramp.length))));
+          // 가장자리: 덩어리의 끝에서는 선이 달리는 방향의 글자를 밝게 긋는다. 팔과 몸통, 판과 판이 선으로 갈라진다.
+          const z = baked.far[k];
+          const left = behind(at - 1, z);
+          const right = behind(at + 1, z);
+          const up = behind(at - w, z);
+          const down = behind(at + w, z);
+          const gx = right - left;
+          const gyy = down - up;
+          if (gx || gyy) {
+            ch = code(gx && gyy ? (gx * gyy > 0 ? '/' : '\\') : gx ? '|' : gyy > 0 ? '_' : '-');
+            v = Math.min(1, Math.max(v, 0.5) + 0.22);
+          } else if (!left && !up) {
+            // 재질이 바뀌는 자리에도 가는 선을 넣는다 (가슴판과 허리띠, 사슬과 어깨판)
+            const side = pick[at + 1] >= 0 && baked.mat[pick[at + 1]] !== m;
+            const under = pick[at + w] >= 0 && baked.mat[pick[at + w]] !== m;
+            if (m !== BAND && (side || under)) ch = code(side && under ? '/' : side ? '|' : '_');
+          }
           const red = m === BAND;
           // 그늘은 푸르스름하게, 빛 받는 면은 따뜻한 흰색으로
-          const k = red ? 0 : v;
-          g.put(c, r, 2, (0.12 + 0.95 * v) * shown, red ? RED[0] : SHADE[0] + (IVORY[0] - SHADE[0]) * k, red ? RED[1] + 60 * v : SHADE[1] + (IVORY[1] - SHADE[1]) * k, red ? RED[2] + 40 * v : SHADE[2] + (IVORY[2] - SHADE[2]) * k, tone(v));
+          const k2 = red ? 0 : v;
+          g.put(c, r, 2, (0.26 + 0.8 * v) * shown, red ? RED[0] : SHADE[0] + (IVORY[0] - SHADE[0]) * k2, red ? RED[1] + 60 * v : SHADE[1] + (IVORY[1] - SHADE[1]) * k2, red ? RED[2] + 40 * v : SHADE[2] + (IVORY[2] - SHADE[2]) * k2, ch);
         }
       }
       if (t > GLINT_AT && t < GLINT_AT + 0.5) g.rays(ox - 0.83 * ax, gy - 1.3 * u, Math.round(9 * (1 - (t - GLINT_AT) / 0.5)), IVORY[0], IVORY[1], IVORY[2]);

@@ -115,8 +115,10 @@ describe('새 장면의 단계', () => {
     expect([0, 3, 5, 8].map(knightPhase)).toEqual(['ground', 'body', 'glint', 'wind']);
   });
 
-  it('귤은 9초마다 하나씩 셋까지 쌓였다가 재채기에 다 떨어진다', () => {
+  it('귤은 9초마다 하나씩 셋까지 쌓였다가 고개가 흔들리면 다 떨어진다', () => {
     expect([0, 6, 15, 24, 32, 36, 40].map(orangesOn)).toEqual([0, 1, 2, 3, 0, 0, 1]);
+    // 다 쌓인 뒤에는 위에서부터 하나씩 떨어진다
+    expect([28, 29.6, 30.9, 31.8].map(orangesOn)).toEqual([3, 2, 1, 0]);
   });
 });
 

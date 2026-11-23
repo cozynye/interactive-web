@@ -1,14 +1,14 @@
 import { code, Grid, hash, rng, Scene, smooth, tone } from './grid';
 
 const TAU = Math.PI * 2;
-// 색은 마법진의 금색, 수정의 얼음빛 파랑, 훑고 올라가는 고리의 보라만 쓴다
+// 색은 마법진과 자루의 금색, 검날의 얼음빛 파랑, 훑고 올라가는 고리와 보석의 보라만 쓴다
 const GOLD = [255, 212, 112];
 const IVORY = [255, 246, 226];
 const ICE = [150, 204, 255];
 const VIOLET = [204, 164, 255];
 const RUNES = 'XYVTZKMNWH+#<>';
 
-// 처음 한 번 펼쳐지는 순서(초): 방울이 떨어짐 → 마법진이 바깥 고리부터 안쪽으로 그려짐 → 수정이 아래에서 위로 솟음 → 떠서 돈다
+// 처음 한 번 펼쳐지는 순서(초): 방울이 떨어짐 → 마법진이 바깥 고리부터 안쪽으로 그려짐 → 검이 칼끝부터 위로 솟음 → 떠서 돈다
 const DROP = 1;
 const CIRCLE_END = 4.9;
 const RISE = [5.2, 8.2];
@@ -19,26 +19,17 @@ export function sigilPhase(t: number) {
   return t < DROP ? 'drop' : t < CIRCLE_END ? 'circle' : t < RISE[1] ? 'rise' : 'hover';
 }
 
-// 수정의 꼭짓점: 위 뾰족점, 위 고리 6개, 아래 고리 6개, 아래 뾰족점
-const TOP = 1.3;
+// 검의 치수(모형 단위). 칼끝이 아래를 향하고, 날의 단면은 가운데가 솟은 마름모다.
+const TOP = 1.34;
 const BOTTOM = -1;
-const RING = 0.66;
-const UP = 0.62;
-const LOW = -0.08;
-const VERTS: number[][] = [
-  [0, TOP, 0],
-  ...Array.from({ length: 6 }, (_, i) => [Math.cos((i / 6) * TAU) * RING, UP, Math.sin((i / 6) * TAU) * RING]),
-  // 아래 고리는 반 칸 돌려서 허리가 세모난 면으로 깎인다
-  ...Array.from({ length: 6 }, (_, i) => [Math.cos(((i + 0.5) / 6) * TAU) * RING, LOW, Math.sin(((i + 0.5) / 6) * TAU) * RING]),
-  [0, BOTTOM, 0],
-];
-const FACES: number[][] = [];
-const EDGES: number[][] = [];
-for (let i = 0; i < 6; i++) {
-  const j = (i + 1) % 6;
-  FACES.push([0, 1 + j, 1 + i], [1 + i, 1 + j, 7 + i], [1 + j, 7 + j, 7 + i], [13, 7 + i, 7 + j]);
-  EDGES.push([0, 1 + i], [1 + i, 1 + j], [1 + i, 7 + i], [1 + j, 7 + i], [7 + i, 7 + j], [13, 7 + i]);
-}
+const GUARD = 0.74;
+const TAPER = -0.62;
+const WIDE = 0.165;
+const THICK = 0.05;
+const BLADE = 0;
+const HILT = 1;
+const GRIP = 2;
+const GEM = 3;
 
 interface Point {
   x: number;
@@ -47,40 +38,105 @@ interface Point {
   nx: number;
   ny: number;
   nz: number;
+  kind: number;
 }
 
-// 면마다 점을 뿌려 둔다. 면 하나는 법선이 같아서 한 가지 밝기로 칠해진다.
+type V = [number, number, number];
+
+// 면마다 넓이에 맞춰 점을 뿌려 둔다. 면 하나는 법선이 같아서 한 가지 밝기로 칠해진다.
 function build() {
   const rand = rng(12);
   const pts: Point[] = [];
-  for (const f of FACES) {
-    const [a, b, c] = f.map((i) => VERTS[i]);
-    const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    const e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  // 세모 하나. 법선은 mid에서 바깥을 보게 맞춘다.
+  const tri = (p: V, q: V, r: V, mid: V, kind: number) => {
+    const e1 = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+    const e2 = [r[0] - p[0], r[1] - p[1], r[2] - p[2]];
     const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
     const len = Math.hypot(n[0], n[1], n[2]);
-    // 중심에서 바깥을 보게 맞춘다
-    const out = n[0] * a[0] + n[2] * a[2] + n[1] * (a[1] - 0.2) < 0 ? -1 : 1;
-    const tris = f.length === 4 ? [[f[0], f[1], f[2]], [f[0], f[2], f[3]]] : [f];
-    for (const tri of tris) {
-      const [p, q, r] = tri.map((i) => VERTS[i]);
-      for (let i = 0; i < 620; i++) {
-        let u = rand();
-        let v = rand();
-        if (u + v > 1) [u, v] = [1 - u, 1 - v];
-        pts.push({
-          x: p[0] + (q[0] - p[0]) * u + (r[0] - p[0]) * v,
-          y: p[1] + (q[1] - p[1]) * u + (r[1] - p[1]) * v,
-          z: p[2] + (q[2] - p[2]) * u + (r[2] - p[2]) * v,
-          nx: (n[0] / len) * out,
-          ny: (n[1] / len) * out,
-          nz: (n[2] / len) * out,
-        });
-      }
+    if (!len) return;
+    const out = (n[0] * (p[0] - mid[0]) + n[1] * (p[1] - mid[1]) + n[2] * (p[2] - mid[2]) < 0 ? -1 : 1) / len;
+    for (let i = Math.ceil(len * 5200) + 30; i > 0; i--) {
+      let u = rand();
+      let v = rand();
+      if (u + v > 1) [u, v] = [1 - u, 1 - v];
+      pts.push({
+        x: p[0] + e1[0] * u + e2[0] * v,
+        y: p[1] + e1[1] * u + e2[1] * v,
+        z: p[2] + e1[2] * u + e2[2] * v,
+        nx: n[0] * out,
+        ny: n[1] * out,
+        nz: n[2] * out,
+        kind,
+      });
     }
+  };
+  const quad = (a: V, b: V, c: V, d: V, mid: V, kind: number) => {
+    tri(a, b, c, mid, kind);
+    tri(a, c, d, mid, kind);
+  };
+  // 마름모 단면의 기둥. 아래(y0)와 위(y1)의 반폭이 달라도 된다.
+  const prism = (y0: number, y1: number, w0: number, w1: number, t0: number, t1: number, kind: number) => {
+    const mid: V = [0, (y0 + y1) / 2, 0];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) quad([sx * w0, y0, 0], [0, y0, sz * t0], [0, y1, sz * t1], [sx * w1, y1, 0], mid, kind);
+  };
+  const box = (c: V, h: V, kind: number) => {
+    for (let axis = 0; axis < 3; axis++)
+      for (const side of [-1, 1]) {
+        const corner = (i: number, j: number) => {
+          const v: V = [c[0], c[1], c[2]];
+          v[axis] += side * h[axis];
+          v[(axis + 1) % 3] += i * h[(axis + 1) % 3];
+          v[(axis + 2) % 3] += j * h[(axis + 2) % 3];
+          return v;
+        };
+        quad(corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1), c, kind);
+      }
+  };
+  // 날: 가로대에서 조금 좁아지며 내려오다가 끝에서 한 점으로 모인다
+  prism(TAPER, GUARD, WIDE * 0.8, WIDE, THICK * 0.8, THICK, BLADE);
+  prism(BOTTOM, TAPER, 0, WIDE * 0.8, 0, THICK * 0.8, BLADE);
+  // 가로대: 가운데 덩어리에서 양쪽으로 뻗고, 끝이 아래로 꺾인다
+  box([0, GUARD + 0.05, 0], [0.2, 0.075, 0.08], HILT);
+  for (const side of [-1, 1]) {
+    box([side * 0.4, GUARD + 0.06, 0], [0.22, 0.04, 0.05], HILT);
+    box([side * 0.62, GUARD + 0.01, 0], [0.05, 0.11, 0.06], HILT);
   }
+  box([0, GUARD + 0.05, 0], [0.06, 0.045, 0.095], GEM);
+  // 자루와 자루 끝의 여덟 면 추
+  box([0, 1.01, 0], [0.05, 0.15, 0.05], GRIP);
+  box([0, 1.165, 0], [0.075, 0.012, 0.075], HILT);
+  prism(1.18, 1.26, 0.11, 0.11, 0.11, 0.11, HILT);
+  prism(1.26, TOP, 0.11, 0, 0.11, 0, HILT);
   return pts;
 }
+
+// 면 위에 긋는 모서리: 날의 양쪽 능선과 두 날
+const EDGES: V[][] = [];
+for (const sz of [-1, 1])
+  EDGES.push(
+    [
+      [0, BOTTOM, 0],
+      [0, TAPER, sz * THICK * 0.8],
+    ],
+    [
+      [0, TAPER, sz * THICK * 0.8],
+      [0, GUARD, sz * THICK],
+    ]
+  );
+for (const sx of [-1, 1])
+  EDGES.push(
+    [
+      [0, BOTTOM, 0],
+      [sx * WIDE * 0.8, TAPER, 0],
+    ],
+    [
+      [sx * WIDE * 0.8, TAPER, 0],
+      [sx * WIDE, GUARD, 0],
+    ]
+  );
+
+// 그 높이에서 검이 차지하는 반폭 (훑고 올라가는 고리가 이만큼 벌어진다)
+const girth = (y: number) => (y < TAPER ? (WIDE * (y - BOTTOM)) / (TAPER - BOTTOM) : y < GUARD ? WIDE : y < GUARD + 0.13 ? 0.66 : 0.11);
 
 // 화면에서 본 선의 기울기에 맞는 글자 (dx는 칸, dy는 줄)
 function stroke(dx: number, dy: number, aspect: number) {
@@ -90,7 +146,7 @@ function stroke(dx: number, dy: number, aspect: number) {
   return code(flat ? '=' : up ? '|' : dx * dy > 0 ? '\\' : '/');
 }
 
-// 방울 하나가 떨어진 자리에 마법진이 그려지고, 그 위로 수정이 솟아 떠서 돈다.
+// 방울 하나가 떨어진 자리에 마법진이 그려지고, 그 위로 엑스칼리버가 칼끝을 아래로 한 채 솟아 떠서 돈다.
 export function createSigil(): Scene {
   const pts = build();
   let letters = 0;
@@ -224,7 +280,7 @@ export function createSigil(): Scene {
             }
           }
           if (lum <= 0) continue;
-          // 수정이 선 뒤에는 빛의 물결이 안에서 바깥으로 지나간다
+          // 검이 선 뒤에는 빛의 물결이 안에서 바깥으로 지나간다
           const ripple = pulse >= 0 ? Math.exp(-Math.pow((rho - pulse) / 0.07, 2)) : 0;
           hot = Math.min(1, hot + ripple * 0.8 + (rho < 0.16 ? risen * (0.6 + 0.4 * Math.sin(t * 2.4)) : 0));
           g.put(c, r, 5, lum * (1 + 0.5 * hot), GOLD[0] + (IVORY[0] - GOLD[0]) * hot, GOLD[1] + (IVORY[1] - GOLD[1]) * hot, GOLD[2] + (IVORY[2] - GOLD[2]) * hot, ch);
@@ -239,13 +295,13 @@ export function createSigil(): Scene {
         g.add(cx + Math.cos(a) * rad * aspect, gy + Math.sin(a) * rad * TILT - p * uc * 1.8, 0.5 * Math.sin(p * Math.PI) * lift, GOLD[0], GOLD[1], GOLD[2], RUNES.charCodeAt(i % RUNES.length));
       }
 
-      // 수정: 고리가 훑고 올라간 높이까지만 보인다. 다 솟은 뒤에는 떠서 천천히 돈다.
+      // 검: 고리가 훑고 올라간 높이까지만 보인다. 다 솟은 뒤에는 떠서 천천히 돈다.
       const scan = BOTTOM + (TOP - BOTTOM + 0.1) * Math.min(1, Math.max(0, (t - RISE[0]) / (RISE[1] - RISE[0])));
       if (t >= RISE[0]) {
-        const spin = t * 0.55;
+        const spin = t * 0.5;
         const ca = Math.cos(spin);
         const sa = Math.sin(spin);
-        // 맨 아래 뾰족점이 마법진 가운데 바로 위에 뜬다
+        // 칼끝이 마법진 가운데 바로 위에 뜬다
         const cy = gy - (0.3 - BOTTOM) * uc - (0.5 + 0.5 * Math.sin(t * 0.9)) * uc * 0.14 * risen;
         const flash = Math.exp(-Math.pow((t - RISE[1] - 0.15) / 0.3, 2));
         for (const p of pts) {
@@ -257,16 +313,26 @@ export function createSigil(): Scene {
           // 왼쪽 위 앞에서 비추는 빛. 면마다 한 가지 밝기라 깎인 면이 드러난다.
           const lit = Math.max(0, -nx * 0.5 + p.ny * 0.45 - nz * 0.74);
           const edge = scan < TOP && scan - p.y < 0.06;
-          // 면 안에서도 위쪽이 조금 더 밝고, 가끔 반짝인다
           // 비스듬한 빛줄기가 4초마다 한 번 겉면을 훑고 지나간다
-          const sheen = 0.3 * Math.exp(-Math.pow((x + p.y * 0.6 + 1.6 - ((t * 0.8) % 3.2)) / 0.14, 2));
-          const k = edge ? 1 : Math.min(1, 0.1 + 0.72 * lit + 0.12 * p.y + sheen + flash + (hash(p.x * 91, p.y * 57) - 0.5) * 0.1 + (hash(p.x * 91, p.y * 57 + Math.floor(t * 3)) > 0.985 ? 0.5 : 0));
-          g.put(cx + x * uc * aspect, cy - p.y * uc, z, 0.3 + 0.7 * k, ICE[0] + (IVORY[0] - ICE[0]) * k * k, ICE[1] + (IVORY[1] - ICE[1]) * k * k, ICE[2], edge ? code('#') : tone(k, 2));
+          const sheen = 0.45 * Math.exp(-Math.pow((x + p.y * 0.6 + 1.6 - ((t * 0.8) % 3.2)) / 0.14, 2));
+          const k = edge ? 1 : Math.min(1, 0.14 + 0.74 * lit + 0.05 * p.y + sheen + flash + (hash(p.x * 91, p.y * 57) - 0.5) * 0.1 + (hash(p.x * 91, p.y * 57 + Math.floor(t * 3)) > 0.985 ? 0.5 : 0));
+          const base = p.kind === BLADE ? ICE : p.kind === GEM ? VIOLET : GOLD;
+          // 자루는 감은 끈의 줄무늬로 어둡게, 보석은 숨 쉬듯 밝아진다
+          const dim = p.kind === GRIP ? (Math.floor(p.y * 26) % 2 ? 0.5 : 0.3) : p.kind === GEM ? 0.8 + 0.2 * Math.sin(t * 2.4) : 1;
+          let ch = edge ? code('#') : tone(k, p.kind === BLADE ? 2 : 14);
+          // 날은 밝은 면이 하얗게 뜨고, 자루는 밝아도 금빛이 남는다
+          let hue = p.kind === BLADE ? k * k : k * k * k * 0.7;
+          // 날 가운데 홈에는 글자가 새겨져 있다
+          const cut = p.kind === BLADE && Math.abs(p.x) < 0.028 && p.y > TAPER && p.y < GUARD - 0.08 && !edge;
+          if (cut) {
+            ch = RUNES.charCodeAt(Math.floor(hash(Math.floor(p.y * uc), 21) * RUNES.length));
+            hue = 0;
+          }
+          const tint = cut ? GOLD : base;
+          g.put(cx + x * uc * aspect, cy - p.y * uc, z, (0.3 + 0.7 * k) * dim, tint[0] + (IVORY[0] - tint[0]) * hue, tint[1] + (IVORY[1] - tint[1]) * hue, tint[2] + (IVORY[2] - tint[2]) * hue, ch);
         }
         // 모서리: 앞쪽에 있는 것만 면 위에 그어진다
-        for (const [a, b] of EDGES) {
-          const A = VERTS[a];
-          const B = VERTS[b];
+        for (const [A, B] of EDGES) {
           const x0 = A[0] * ca + A[2] * sa;
           const z0 = -A[0] * sa + A[2] * ca;
           const x1 = B[0] * ca + B[2] * sa;
@@ -277,18 +343,19 @@ export function createSigil(): Scene {
             const u = i / n;
             const y = A[1] + (B[1] - A[1]) * u;
             if (y > scan) continue;
-            g.put(cx + (x0 + (x1 - x0) * u) * uc * aspect, cy - y * uc, z0 + (z1 - z0) * u - 0.04, 0.95, IVORY[0], IVORY[1], IVORY[2], ch === code('=') ? code('-') : ch);
+            g.put(cx + (x0 + (x1 - x0) * u) * uc * aspect, cy - y * uc, z0 + (z1 - z0) * u - 0.02, 0.95, IVORY[0], IVORY[1], IVORY[2], ch === code('=') ? code('-') : ch);
           }
         }
         // 훑고 올라가는 고리
         if (scan < TOP) {
-          const rad = RING * Math.min(1, (TOP - scan) / (TOP - UP), (scan - BOTTOM) / (LOW - BOTTOM)) + 0.28;
+          const rad = girth(scan) + 0.28;
           for (let i = 0; i < 120; i++) {
             const a = (i / 120) * TAU;
             g.put(cx + Math.cos(a) * rad * uc * aspect, cy - scan * uc + Math.sin(a) * rad * uc * 0.3, Math.sin(a) > 0 ? -2 : 2, 0.9, VIOLET[0], VIOLET[1], VIOLET[2], code(i % 3 ? '=' : '#'));
           }
         }
-        if (flash > 0.25) g.rays(cx, cy - 0.2 * uc, Math.round(10 * flash), IVORY[0], IVORY[1], IVORY[2]);
+        if (risen > 0.5 && flash <= 0.25) g.rays(cx, cy - (GUARD + 0.05) * uc, 2 + Math.round(1.5 * Math.sin(t * 2.4)), VIOLET[0], VIOLET[1], VIOLET[2]);
+        if (flash > 0.25) g.rays(cx, cy - (GUARD + 0.045) * uc, Math.round(10 * flash), IVORY[0], IVORY[1], IVORY[2]);
 
         // 둘레를 도는 조각들과 위로 뻗는 빛기둥
         for (let i = 0; i < 8 && risen > 0; i++) {
