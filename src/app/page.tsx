@@ -51,9 +51,9 @@ export default function Home() {
             <div className={styles.copy}>
               <h2 className={styles.title}>아스키 게임</h2>
               <p className={styles.sub}>
-                글자로 그린 풀밭에서 용과 싸운다.
+                글자로 그린 벌판에서 몰려오는 무리를 베며 버틴다.
                 <br />
-                붉게 차오르는 바닥을 피하고 틈이 날 때 벤다.
+                구슬을 모아 무기를 올리고 3분 뒤에 오는 용을 쓰러뜨린다.
               </p>
               <Link href="/game" className={styles.pill}>
                 글자 평원의 용 하기

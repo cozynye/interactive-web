@@ -1,19 +1,18 @@
 import type { Input } from './engine';
 
-export type Action = 'attack' | 'dash' | 'wave' | 'spin' | 'potion' | 'start';
+export type Action = 'dash' | 'start' | 'pick1' | 'pick2' | 'pick3';
 
 // 글자가 아니라 자판 위치(code)로 읽어야 한글 입력 상태에서도 움직인다
 const KEYS: Record<string, Action> = {
-  KeyJ: 'attack',
   Space: 'dash',
   ShiftLeft: 'dash',
-  KeyK: 'wave',
-  Digit1: 'wave',
-  KeyL: 'spin',
-  Digit2: 'spin',
-  KeyQ: 'potion',
-  Digit3: 'potion',
   Enter: 'start',
+  Digit1: 'pick1',
+  Digit2: 'pick2',
+  Digit3: 'pick3',
+  Numpad1: 'pick1',
+  Numpad2: 'pick2',
+  Numpad3: 'pick3',
 };
 const MOVES: Record<string, [number, number]> = {
   KeyW: [0, -1],
@@ -30,18 +29,11 @@ const BUFFER = 0.15;
 // 조이스틱을 끝까지 민 것으로 치는 거리(px)
 const STICK = 50;
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-// 자판, 마우스, 터치를 한 틱의 입력으로 모은다.
-// field는 마우스로 조준하고 베는 곳, pad는 손가락을 대면 조이스틱이 되는 곳이다.
-export function createControls(field: HTMLElement, pad: HTMLElement) {
+// 자판과 터치를 한 틱의 입력으로 모은다. pad는 손가락을 대면 조이스틱이 되는 곳이다.
+export function createControls(pad: HTMLElement) {
   const held = new Set<string>();
   const holding: Partial<Record<Action, boolean>> = {};
   const pressed: Partial<Record<Action, number>> = {};
-  let mouse: Point | null = null;
   let stick: { id: number; ox: number; oy: number; x: number; y: number } | null = null;
   let clock = 0;
 
@@ -67,15 +59,6 @@ export function createControls(field: HTMLElement, pad: HTMLElement) {
     held.clear();
     for (const a of Object.keys(holding) as Action[]) holding[a] = false;
   };
-  const onMouseMove = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse') mouse = { x: e.clientX, y: e.clientY };
-  };
-  const onMouseDown = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse' && e.button === 0) press('attack', true);
-  };
-  const onMouseUp = (e: PointerEvent) => {
-    if (e.pointerType === 'mouse') press('attack', false);
-  };
   // 손가락을 댄 자리가 조이스틱의 가운데가 된다
   const onPadDown = (e: PointerEvent) => {
     pad.setPointerCapture(e.pointerId);
@@ -96,9 +79,6 @@ export function createControls(field: HTMLElement, pad: HTMLElement) {
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKey);
   window.addEventListener('blur', onBlur);
-  window.addEventListener('pointerup', onMouseUp);
-  field.addEventListener('pointermove', onMouseMove);
-  field.addEventListener('pointerdown', onMouseDown);
   pad.addEventListener('pointerdown', onPadDown);
   pad.addEventListener('pointermove', onPadMove);
   pad.addEventListener('pointerup', onPadUp);
@@ -110,10 +90,7 @@ export function createControls(field: HTMLElement, pad: HTMLElement) {
     tick(dt: number) {
       clock += dt;
     },
-    // 마우스가 가리키는 화면 자리(px). 마우스를 쓴 적이 없으면 null이다.
-    pointer: () => mouse,
-    // aim은 조준하는 세계 좌표다
-    read(aim: Point | null): Input {
+    read(): Input {
       let mx = stick?.x ?? 0;
       let my = stick?.y ?? 0;
       for (const key of held) {
@@ -121,15 +98,12 @@ export function createControls(field: HTMLElement, pad: HTMLElement) {
         my += MOVES[key][1];
       }
       const on = (a: Action) => Boolean(holding[a]) || clock - (pressed[a] ?? -9) < BUFFER;
-      return { mx, my, aim, attack: on('attack'), dash: on('dash'), wave: on('wave'), spin: on('spin'), potion: on('potion'), start: on('start') };
+      return { mx, my, dash: on('dash'), start: on('start'), pick: on('pick1') ? 1 : on('pick2') ? 2 : on('pick3') ? 3 : 0 };
     },
     dispose() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
       window.removeEventListener('blur', onBlur);
-      window.removeEventListener('pointerup', onMouseUp);
-      field.removeEventListener('pointermove', onMouseMove);
-      field.removeEventListener('pointerdown', onMouseDown);
       pad.removeEventListener('pointerdown', onPadDown);
       pad.removeEventListener('pointermove', onPadMove);
       pad.removeEventListener('pointerup', onPadUp);

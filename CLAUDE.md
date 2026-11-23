@@ -33,7 +33,7 @@ src/
 └── features/
     ├── fire/             # 불꽃놀이 엔진과 화면
     ├── ascii/            # 아스키 작품 계산식, 컴포넌트, 목록(asciiList.ts)
-    └── game/             # /game 보스전: 규칙(engine.ts), 그리기(draw.ts), 입력(controls.ts), 캔버스 렌더러(ink.ts), 화면(GameStage.tsx), 홈 타일 시연(demo.ts)
+    └── game/             # /game 생존 게임: 규칙(engine.ts), 그리기(draw.ts), 입력(controls.ts), 자동 조종(bot.ts), 캔버스 렌더러(ink.ts), 화면(GameStage.tsx), 홈 타일 시연(demo.ts)
 ```
 
 ## 상태 확인
@@ -49,5 +49,5 @@ src/
 - 색이 들어가는 아스키 장면은 `src/features/ascii/stage/`에 `Scene`(매 프레임 `Grid`를 채우는 함수)으로 만들고 `scenes.ts`의 `SCENES`에 등록한다. 칸 폭은 기본 6px이고 장면이 `cell`로 바꾼다. 입체로 보여야 하는 물체는 `put`에 조각 번호(`part`)를 넘기면 무대가 `Grid.finish()`에서 윤곽선과 속 글자를 넣고, 가장 밝은 점에는 `rays()`로 빛살을 그린다. 면의 굴곡을 명암으로 보여야 하는 덩어리(카피바라, 게임의 용)는 `relief.ts`의 `relief()`에 높이 함수를 넘기거나 `grid.ts`의 `lit()`·`tone()`을 직접 쓴다. 점을 뿌리기 어려운 장면(블랙홀)은 칸마다 값을 계산해 채운다. 색은 장면마다 두세 가지로 제한하고, 같은 경로를 되풀이하지 않도록 주기가 서로 다른 흔들림이나 난수 재시작을 섞는다.
 - 아스키 작품은 `src/features/ascii/asciiList.ts`에 한 줄 추가하고 `src/app/ascii/<slug>/page.tsx`를 만든다. 목록 카드의 미리보기는 `src/app/ascii/page.tsx`의 `PREVIEWS`에 등록한다.
 - `src/features/fire/`는 다른 프로젝트에서 옮겨 온 코드라 린트 규칙 일부를 풀어 두었다(`eslint.config.mjs`). 엔진은 React와 분리된 `createKnitFire()` 하나로 동작하고, `window`·`localStorage`에 의존해서 서버에서 그리지 않는다.
-- 게임 규칙은 `src/features/game/engine.ts`의 `update()`에만 둔다. DOM을 건드리지 않는 순수한 코드라서 `__tests__/engine.test.ts`가 화면 없이 돌린다. 게임 화면은 지금 단계를 `main`의 `data-phase`(`title`/`fight`/`won`/`lost`)에 적는다. 게임만은 `createTicker`를 쓰지 않고 자체 루프를 돈다(움직임 줄이기가 켜져 있어도 게임은 해야 하기 때문이고, 그때는 화면 흔들림만 끈다).
+- 게임 규칙은 `src/features/game/engine.ts`의 `update()`에만 둔다. DOM을 건드리지 않는 순수한 코드라서 `__tests__/engine.test.ts`가 화면 없이 돌린다. 게임 화면은 지금 단계를 `main`의 `data-phase`(`title`/`fight`/`levelup`/`won`/`lost`)에 적는다. 무기와 적의 수치는 `engine.ts` 위쪽의 표(`SWORD`, `KINDS` 등)에 모여 있고, 고친 뒤에는 `bot.ts`의 자동 조종으로 끝까지 돌리는 테스트가 균형이 크게 깨지지 않았는지 본다. 게임 화면은 세 겹으로 그린다(`draw.ts`의 `Layers`): 칸에 맞춘 세계 격자, 칸 사이에 놓는 글자 목록(`dot`·`label`·`stamp`로 넣는다), 붙박인 HUD 격자. 움직이는 것을 새로 그릴 때는 `fx`·`fy`와 `dot`을, 바닥에 깔리는 효과는 `sx`·`sy`와 `g.put`·`g.add`를 쓴다. 게임만은 `createTicker`를 쓰지 않고 자체 루프를 돈다(움직임 줄이기가 켜져 있어도 게임은 해야 하기 때문이고, 그때는 화면 흔들림만 끈다).
 - 계속 도는 애니메이션은 직접 `requestAnimationFrame`을 돌리지 않고 `src/lib/ticker.ts`의 `createTicker`를 쓴다. 화면 밖 정지와 `prefers-reduced-motion` 처리가 거기에 있다.

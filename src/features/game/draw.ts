@@ -1,19 +1,27 @@
-import { code, dome, Grid, hash, lit, RAMP, smooth } from '../ascii/stage/grid';
+import { code, dome, Grid, hash, lit, RAMP } from '../ascii/stage/grid';
 import { shade } from '../ascii/stage/relief';
-import { ARENA, BOSS_HP, BOSS_R, Game, MAX_HP, MAX_MP, ROAR, SLASH, SPIN, turn, WAVE, ZONE_FLASH, zoneAt } from './engine';
+import { AURA, BOLT, BOLT_TIME, BOSS_AT, BOSS_HP, Enemy, Game, ORBIT, ROAR, SLASH_TIME, SWORD, turn, UpgradeId, WEAPONS, ZONE_FLASH, zoneAt } from './engine';
 
-// 색은 역할마다 하나씩이다: 땅은 어두운 풀빛, 용은 보라, 위험은 빨강, 플레이어는 흰색과 붉은 목도리, 마력은 파랑.
+// 색은 역할마다 하나씩이다: 땅은 어두운 풀빛, 용은 보라, 위험은 빨강, 플레이어는 흰색과 자홍 망토, 금빛은 주울 것과 우두머리, 경험치와 마법은 파랑, 무리는 종류마다 한 가지 색.
 const GRASS = [70, 128, 92];
 const DRY = [124, 142, 96];
 const STONE = [140, 148, 170];
 const DANGER = [255, 64, 56];
 const BLAST = [255, 214, 140];
 const IVORY = [255, 246, 226];
-const SCARF = [236, 44, 48];
+const SCARF = [222, 48, 108];
 const MANA = [130, 184, 255];
 const GOLD = [255, 214, 96];
 const HEAL = [130, 230, 140];
 const EMBER = [255, 138, 60];
+const STEEL = [214, 232, 255];
+// 무리의 색: 구울, 박쥐, 해골, 돌거인
+const MOB = [
+  [142, 170, 104],
+  [214, 136, 226],
+  [232, 222, 206],
+  [150, 170, 210],
+];
 // 용의 살갗: 그늘, 중간, 빛 받는 곳
 const HIDE = [
   [70, 48, 150],
@@ -38,8 +46,8 @@ const FURY = [
 ];
 
 // 화면 세로에 들어오는 길이와 가로에 적어도 들어와야 하는 길이(줄 단위 세계 길이)
-const VIEW = 46;
-const MIN_WIDE = 38;
+const VIEW = 36;
+const MIN_WIDE = 26;
 // 그림자가 떨어지는 방향 (빛은 왼쪽 위에서 온다)
 const SHADOW = [1.3, 1.5];
 
@@ -47,31 +55,46 @@ export interface View {
   // 카메라가 보는 세계 좌표
   x: number;
   y: number;
-  // 조준점 (없으면 그리지 않는다)
-  aim: { x: number; y: number } | null;
+  // 지금 용 쪽으로 당겨 보고 있는 정도 (0이면 플레이어가 한가운데다)
+  pull: number;
+  // 플레이어를 화면 위쪽으로 올려 보는 정도. 시작 화면에서는 아래에 안내가 깔려서 올려 본다.
+  lift: number;
+}
+
+// 칸에 맞추지 않고 그리는 글자 하나. x, y는 격자 칸 좌표이고 소수여도 된다.
+export interface Glyph {
+  x: number;
+  y: number;
+  ch: number;
+  lum: number;
+  r: number;
+  g: number;
+  b: number;
+}
+
+// 게임 화면은 세 겹으로 그린다: 칸에 맞춘 세계(풀, 용, 무기 효과), 칸 사이로 매끄럽게 움직이는 글자(주인공, 무리, 구슬, 숫자), 화면에 붙박인 HUD.
+// 홈 타일의 시연처럼 겹을 주지 않으면 모두 한 격자에 그린다.
+export interface Layers {
+  sprites: Glyph[];
+  hud: Grid;
 }
 
 // 세계 길이 1이 차지하는 줄 수. 좁은 화면에서는 가로가 모자라지 않게 줄인다.
 const zoom = (g: Grid) => Math.min(g.rows / VIEW, g.cols / (g.aspect * MIN_WIDE));
 
-// 화면의 한 점이 가리키는 세계 좌표
-export function toWorld(g: Grid, view: View, col: number, row: number) {
-  const z = zoom(g);
-  return { x: view.x + (col - g.cols / 2) / (z * g.aspect), y: view.y + (row - g.rows / 2) / z };
-}
-
-// 카메라는 플레이어를 따라가되 용 쪽으로 pull만큼 당겨 본다
+// 카메라는 플레이어를 한가운데에 두고 늦지 않게 따라간다. 용이 있으면 용 쪽으로 pull만큼 천천히 당겨 본다.
 export function follow(view: View, game: Game, pull: number, dt: number) {
   const { player: p, boss: b } = game;
-  const k = 1 - Math.exp(-dt * 6);
-  view.x += (p.x + (b.x - p.x) * pull - view.x) * k;
-  view.y += (p.y + (b.y - p.y) * pull - view.y) * k;
+  view.pull += ((b.here && game.phase !== 'won' ? pull : 0) - view.pull) * (1 - Math.exp(-dt * 2.5));
+  view.lift += ((game.phase === 'title' ? 7 : 0) - view.lift) * (1 - Math.exp(-dt * 4));
+  view.x = p.x + (b.x - p.x) * view.pull;
+  view.y = p.y + (b.y - p.y) * view.pull + view.lift;
 }
 
 // 카메라를 칸 단위로 맞춘 사본. 맞추지 않으면 움직일 때 풀이 떨린다.
-export function snap(g: Grid, view: View): View {
+function snap(g: Grid, view: View): View {
   const z = zoom(g);
-  return { x: Math.round(view.x * z * g.aspect) / (z * g.aspect), y: Math.round(view.y * z) / z, aim: view.aim };
+  return { x: Math.round(view.x * z * g.aspect) / (z * g.aspect), y: Math.round(view.y * z) / z, pull: view.pull, lift: view.lift };
 }
 
 // 한 프레임을 그리는 동안 함께 쓰는 값
@@ -85,6 +108,12 @@ interface Cam {
   ax: number;
   sx: (wx: number) => number;
   sy: (wy: number) => number;
+  // 칸에 맞추지 않은 자리 (매끄럽게 움직이는 글자가 쓴다)
+  fx: (wx: number) => number;
+  fy: (wy: number) => number;
+  // 매끄럽게 움직이는 글자를 모으는 곳과 HUD를 그릴 격자. 겹을 주지 않았으면 out은 null이고 hud는 g와 같다.
+  out: Glyph[] | null;
+  hud: Grid;
   pose: Pose;
 }
 
@@ -164,26 +193,16 @@ function ground(k: Cam) {
   const cf = Math.cos(b.face);
   const sf = Math.sin(b.face);
   const zones = game.zones.filter((zn) => zn.t >= 0);
-  const alive = game.phase !== 'won';
+  const alive = b.here && game.phase !== 'won';
   for (let r = 0; r < rows; r++) {
     const wy = view.y + (r - rows / 2) / z;
     const ir = Math.round(wy * z);
     for (let c = 0; c < cols; c++) {
       const wx = view.x + (c - cols / 2) / ax;
       const ic = Math.round(wx * ax);
-      const d = Math.hypot(wx, wy);
       const h = hash(ic, ir);
       // 화면 가장자리로 갈수록 어둡다
       const dim = 1 - 0.9 * ((c / cols - 0.5) ** 2 + (r / rows - 0.5) ** 2);
-      if (d > ARENA) {
-        // 풀밭을 두른 돌과 그 바깥의 숲. 숲은 멀어질수록 어둠에 묻힌다.
-        if (d < ARENA + 0.9) g.put(c, r, 8, (0.34 + 0.25 * h) * dim, STONE[0], STONE[1], STONE[2], code(h > 0.6 ? 'O' : 'o'));
-        else if (d < ARENA + 16) {
-          const n = Math.sin(ic * 0.31 + ir * 1.3) + Math.sin(ic * 0.11 - ir * 0.7);
-          if (h > 0.55 && n > -0.9) g.put(c, r, 8, Math.max(0, 0.24 - (d - ARENA) * 0.015) * (0.6 + 0.4 * h) * dim, GRASS[0], GRASS[1], GRASS[2], code(n > 0.6 ? 'A' : '^'));
-        }
-        continue;
-      }
       let lum = 0;
       let ch = 0;
       let col = GRASS;
@@ -192,21 +211,28 @@ function ground(k: Cam) {
       const by = wy - b.y;
       // 용의 그림자가 떨어진 자리에는 풀을 그리지 않는다
       const shadow = alive && Math.abs(bx) < 21 && Math.abs(by) < 21 && dragonAt((bx - SHADOW[0]) * cf + (by - SHADOW[1]) * sf, -(bx - SHADOW[0]) * sf + (by - SHADOW[1]) * cf, pose) > 0;
-      // 풀: 무더기로 모여 나고, 키 큰 풀만 바람 물결을 따라 눕는다. 플레이어 둘레는 조금 밝다.
+      // 풀: 무더기로 모여 나고, 키 큰 풀만 바람 물결을 따라 눕는다. 플레이어가 선 자리는 비워서 몸이 풀에 묻히지 않는다.
       const patch = Math.sin(ic * 0.05 + Math.sin(ir * 0.11) * 2) + Math.sin(ir * 0.09 - ic * 0.03);
-      if (!shadow && h > 0.74 - 0.13 * patch) {
-        const tall = h > 0.94;
+      if (!shadow && toP > 2.3 && h > 0.8 - 0.13 * patch) {
+        const tall = h > 0.965;
         const sway = Math.sin(ic * 0.08 + ir * 0.15 - t * 1.7) + 0.5 * Math.sin(ic * 0.021 - t * 0.6);
-        const pressed = toP < 1.7 || Math.hypot(bx, by) < BOSS_R + 1.5;
-        ch = code(pressed ? '.' : h > 0.996 ? '*' : tall ? (sway > 0.5 ? '/' : sway < -0.6 ? '\\' : '|') : h > 0.86 ? '"' : h > 0.8 ? "'" : ',');
-        lum = (0.14 + 0.12 * (h - 0.74) * 4 + 0.03 * sway + 0.2 * Math.exp(-((toP / 7) ** 2))) * dim;
-        col = h > 0.996 ? GOLD : patch > 0.9 ? DRY : GRASS;
+        ch = code(h > 0.996 ? '*' : tall ? (sway > 0.5 ? '/' : sway < -0.6 ? '\\' : '|') : h > 0.86 ? '"' : h > 0.8 ? "'" : ',');
+        lum = (0.12 + 0.1 * (h - 0.8) * 5 + 0.03 * sway + 0.16 * Math.exp(-((toP / 9) ** 2))) * dim;
+        col = h > 0.996 || patch > 0.9 ? DRY : GRASS;
       }
-      // 싸움터 바닥에 새겨진 고리
-      if (!shadow && Math.abs(d - ARENA * 0.62) < 0.3 && (ic + ir) % 3 === 0) {
-        ch = code(':');
-        lum = 0.26 * dim;
-        col = STONE;
+      // 벌판에 드문드문 박힌 돌. 걸을 때 얼마나 움직였는지 가늠하게 해 준다.
+      const gx = Math.floor(wx / 14);
+      const gy = Math.floor(wy / 9);
+      const rock = hash(gx, gy);
+      if (!shadow && rock > 0.6) {
+        const dc = ic - Math.round((gx + 0.2 + 0.6 * hash(rock, 1)) * 14 * ax);
+        const dr = ir - Math.round((gy + 0.2 + 0.6 * hash(rock, 2)) * 9 * z);
+        const art = dr === 0 ? '(__)' : dr === -1 ? ' __ ' : '';
+        if (dc >= 0 && dc < art.length && art[dc] !== ' ') {
+          ch = code(art[dc]);
+          lum = 0.3 * dim;
+          col = STONE;
+        }
       }
       // 떨어진 자리의 그을음
       for (const s of game.scorch) {
@@ -254,6 +280,7 @@ function dragon(k: Cam) {
   const { g, game, view, t, z, ax, sx, sy, pose } = k;
   const { cols, rows } = g;
   const b = game.boss;
+  if (!b.here) return;
   // 쓰러지면 잿빛으로 식으면서 흩어진다
   const dead = game.phase === 'won' ? game.since / 2.6 : 0;
   if (dead >= 1) return;
@@ -315,55 +342,198 @@ function dragon(k: Cam) {
 // 방향에 맞는 선 글자
 const stroke = (a: number) => (Math.abs(Math.sin(a)) < 0.38 ? '-' : Math.abs(Math.cos(a)) < 0.38 ? '|' : Math.cos(a) * Math.sin(a) > 0 ? '\\' : '/');
 
-function figure(g: Grid, c0: number, r0: number, lum: number, col: number[], step: boolean) {
-  g.put(c0, r0 - 1, -5, lum, col[0], col[1], col[2], code('o'));
-  g.put(c0 - 1, r0, -5, lum, col[0], col[1], col[2], code('/'));
-  g.put(c0, r0, -5, lum, col[0], col[1], col[2], code('#'));
-  g.put(c0 + 1, r0, -5, lum, col[0], col[1], col[2], code('\\'));
-  g.put(c0 - (step ? 1 : 0), r0 + 1, -5, lum, col[0], col[1], col[2], code(step ? '/' : '|'));
-  g.put(c0 + 1, r0 + 1, -5, lum, col[0], col[1], col[2], code(step ? '\\' : '|'));
+// 글자 그림을 좌우로 뒤집을 때 바꿔 써야 하는 글자
+const MIRROR: Record<string, string> = { '/': '\\', '\\': '/', '(': ')', ')': '(', '<': '>', '>': '<', '[': ']', ']': '[', d: 'b', b: 'd' };
+
+// 글자 하나를 (c, r)에 놓는다. 겹이 있으면 칸 사이에 그대로 놓고, 없으면 가까운 칸에 넣는다.
+function dot(k: Cam, c: number, r: number, z: number, lum: number, col: number[], ch: number) {
+  if (k.out) k.out.push({ x: c, y: r, ch, lum, r: col[0], g: col[1], b: col[2] });
+  else k.g.put(c, r, z, lum, col[0], col[1], col[2], ch);
 }
 
+// 세계에 붙은 짧은 글귀 (피해 숫자, 체력 막대)
+function label(k: Cam, c: number, r: number, s: string, lum: number, col: number[]) {
+  if (k.out) {
+    for (let i = 0; i < s.length; i++) if (s[i] !== ' ') k.out.push({ x: c + i, y: r, ch: s.charCodeAt(i), lum, r: col[0], g: col[1], b: col[2] });
+  } else k.g.text(Math.round(c), Math.round(r), s, lum, col[0], col[1], col[2]);
+}
+
+// 글자 그림 한 장을 찍는다. (c0, r0)은 발이 놓이는 가운데 칸이고, tint는 글자마다 색을 고르는 기호다.
+function stamp(k: Cam, c0: number, r0: number, rows: string[], tint: string[] | null, flip: boolean, z: number, lum: number, ink: (key: string) => number[]) {
+  const mid = 4;
+  for (let i = 0; i < rows.length; i++)
+    for (let j = 0; j < rows[i].length; j++) {
+      const ch = rows[i][j];
+      if (ch === ' ') continue;
+      const off = j - (tint ? mid : (rows[i].length - 1) / 2);
+      dot(k, c0 + Math.round(flip ? -off : off), r0 - (rows.length - 1 - i), z, lum, ink(tint ? tint[i][j] : 'i'), code(flip ? (MIRROR[ch] ?? ch) : ch));
+    }
+}
+
+// 주인공: 깃 달린 투구, 뒤로 날리는 붉은 망토, 어깨판과 문장 달린 겉옷, 세워 든 검. 오른쪽을 보는 그림이고 왼쪽을 볼 때는 뒤집는다.
+// 가운데 칸은 왼쪽에서 다섯 번째(몸통)다.
+const HERO = ['   ,^.  |', '  ~(o)] |', ' ~~/#\\==+', ' ~{|H|)  ', '   /_\\   ', '   / \\   '];
+const HERO_TINT = ['   ggg  s', '  riiii s', ' rriiiiig', ' rririii ', '   igi   ', '   i i   '];
+// 벨 때는 검을 앞으로 뻗는다
+const HERO_SWING = ['   ,^.      ', '  ~(o)]     ', ' ~~/#\\==+---', ' ~{|H|)     ', '   /_\\      ', '   / \\      '];
+const HERO_SWING_TINT = ['   ggg      ', '  riiii     ', ' rriiiiigsss', ' rririii    ', '   igi      ', '   i i      '];
+// 걸을 때 번갈아 나오는 다리와, 바람에 따라 바뀌는 망토 자락(머리 뒤, 어깨 뒤, 등 뒤)
+const LEGS = ['   / \\   ', '   |\\    ', '   | |   ', '   /|    '];
+const CAPES = [
+  ['  ~', ' ~~', ' ~'],
+  ['  -', ' ~-', ' -'],
+  ['  ~', ' -~', ' ='],
+  ['  =', ' ~~', ' ~'],
+];
+
+function heroRows(t: number, moving: boolean, swing: boolean) {
+  const rows = [...(swing ? HERO_SWING : HERO)];
+  // 달릴 때는 망토가 빠르게, 서 있을 때는 천천히 펄럭인다
+  const cape = CAPES[Math.abs(Math.floor(t * (moving ? 9 : 3))) % CAPES.length];
+  for (let i = 0; i < 3; i++) rows[i + 1] = cape[i] + rows[i + 1].slice(cape[i].length);
+  if (moving) rows[5] = LEGS[Math.abs(Math.floor(t * 10)) % LEGS.length] + rows[5].slice(9);
+  // 서 있을 때는 숨을 쉬며 깃이 까딱인다
+  else if (Math.sin(t * 2.2) > 0.6) rows[0] = rows[0].replace(',^.', '.^,');
+  return rows;
+}
+
+// 무리의 글자 그림. 종류마다 두 장을 번갈아 보여 준다.
+const MOBS = [
+  [
+    [',o,', '(%)', '/ \\'],
+    [',o,', '(%)', '| |'],
+  ],
+  [['\\^o^/'], ['/vov\\']],
+  [
+    [' @ ', '-#-', '/ \\'],
+    [' @ ', '\\#/', '| |'],
+  ],
+  [
+    [' ___ ', '[o_o]', '(###)', ' d b '],
+    [' ___ ', '[o_o]', '(###)', ' b d '],
+  ],
+];
+const ELITE = [
+  [' \\W/ ', ' (@) ', '/[#]\\', ' / \\ '],
+  [' \\W/ ', ' (@) ', '\\[#]/', ' | | '],
+];
+const WHITE = [255, 255, 255];
+
+function mobs(k: Cam) {
+  const { g, game, t, fx, fy } = k;
+  const { cols, rows } = g;
+  // 구슬: 경험치는 파란 별, 큰 것은 금빛, 고기는 초록, 상자는 금빛 궤짝이다. 무리보다 먼저 그려서 발밑에 깔린다.
+  for (const m of game.gems) {
+    const c = fx(m.x);
+    const r = fy(m.y);
+    if (c < -2 || c > cols + 2 || r < -2 || r > rows + 2) continue;
+    if (m.xp < 0) {
+      label(k, c - 1, r, '[=]', 1, GOLD);
+      if (Math.sin(t * 6) > 0) label(k, c - 1, r - 1, '\\|/', 0.8, GOLD);
+      continue;
+    }
+    const col = m.xp === 0 ? HEAL : m.xp >= 5 ? GOLD : MANA;
+    const twinkle = 0.85 + 0.15 * Math.sin(t * 5 + m.x * 3 + m.y);
+    dot(k, c, r, 3, twinkle, col, code(m.xp === 0 ? '&' : m.xp >= 2 ? '*' : '+'));
+  }
+  // 아래쪽에 있는 것이 위쪽 것을 가리도록 위에서부터 그린다
+  seen.length = 0;
+  for (const e of game.enemies) {
+    const c = fx(e.x);
+    const r = fy(e.y);
+    if (c > -4 && c < cols + 4 && r > -1 && r < rows + 5) seen.push(e);
+  }
+  seen.sort((a, b) => a.y - b.y);
+  for (const e of seen) {
+    const c = fx(e.x);
+    const r = fy(e.y);
+    // 저마다 다른 박자로 걷는다
+    const frame = Math.abs(Math.floor(t * (e.kind === 1 ? 9 : 4) + e.max * 0.37 + e.kind)) % 2;
+    const art = (e.elite ? ELITE : MOBS[e.kind])[frame];
+    const col = e.flash > 0 ? WHITE : e.elite ? GOLD : MOB[e.kind];
+    // 박쥐는 한 줄 떠서 난다. 무리는 주인공보다 어둡게 그려서 주인공이 먼저 눈에 들어오고, 한 줄짜리 박쥐만 조금 밝다.
+    stamp(k, c, r + (e.kind === 1 ? -1 : 1), art, null, false, 2 - r / rows, e.flash > 0 ? 1 : e.elite || e.kind === 1 ? 0.85 : 0.66, () => col);
+    if (e.elite) {
+      const n = Math.round((Math.max(0, e.hp) / e.max) * 7);
+      label(k, c - 3, r - 4, '='.repeat(n) + '.'.repeat(7 - n), 0.9, GOLD);
+    }
+  }
+}
+// 이번 프레임에 화면에 든 적 (매 프레임 새로 만들지 않고 돌려쓴다)
+const seen: Enemy[] = [];
+
 function hero(k: Cam, ghosts: Ghost[]) {
-  const { g, game, t, sx, sy } = k;
+  const { g, game, t, sx, sy, fx, fy } = k;
   const p = game.player;
-  const pc = Math.round(sx(p.x));
-  const pr = Math.round(sy(p.y));
-  for (const gh of ghosts) figure(g, Math.round(sx(gh.x)), Math.round(sy(gh.y)), gh.life * 1.6, MANA, false);
+  const pc = fx(p.x);
+  const pr = fy(p.y) + 3;
+  // 맞으면 몸 전체가 아니라 흰 부분만 붉게 깜박여서 형체가 남는다
+  const sting = p.hurt > 0 && Math.sin(t * 40) > 0;
+  const ink = (key: string) => (key === 'r' ? SCARF : key === 'g' ? GOLD : key === 's' ? STEEL : sting ? DANGER : IVORY);
+  // 발이 놓이는 줄 (그림은 6줄이고 몸의 가운데가 플레이어의 자리다)
+  for (const gh of ghosts) stamp(k, fx(gh.x), fy(gh.y) + 3, HERO, HERO_TINT, gh.flip, -4.5, gh.life * 1.6, () => MANA);
   if (game.phase !== 'lost' || game.since < 0.6) {
     // 무적인 동안에는 깜박인다
     const blink = p.safe > 0 && p.dash <= 0 && Math.sin(t * 50) > 0;
-    figure(g, pc, pr, blink ? 0.45 : 1, p.hurt > 0 ? DANGER : IVORY, p.moving && Math.sin(t * 16) > 0);
-    // 목도리는 보는 쪽 반대로 날린다
-    const back = Math.cos(p.face) >= 0 ? -1 : 1;
-    const up = Math.sin(t * 9) > 0;
-    g.put(pc + back, pr - 1, -5, 0.95, SCARF[0], SCARF[1], SCARF[2], code('~'));
-    g.put(pc + back * 2, pr - 1 + (up ? 0 : -1), -5, 0.85, SCARF[0], SCARF[1], SCARF[2], code(up ? '-' : '~'));
-    g.put(pc + back * 3, pr - 1 + (up ? -1 : 0), -5, 0.6, SCARF[0], SCARF[1], SCARF[2], code(up ? '~' : '-'));
-    // 검은 조준하는 쪽으로 든다
-    const blade = code(stroke(p.face));
-    for (const n of [1, 2, 3])
-      g.put(pc + Math.round(Math.cos(p.face) * (1.4 + n * 1.1)), pr + Math.round(Math.sin(p.face) * (0.6 + n * 0.7)), -5, 1, IVORY[0], IVORY[1], IVORY[2], blade);
-  }
-  // 베는 궤적: 초승달 모양이 한쪽 끝에서 다른 쪽 끝으로 지나간다
-  if (p.slashT < 0.16) {
-    const e = p.slashT / 0.16;
-    for (let i = 0; i <= 40; i++) {
-      const u = i / 40;
-      if (u > e + 0.1) break;
-      const a = p.slashAng - 0.95 + 1.9 * u;
-      const fade = Math.max(0, 1 - (e - u) * 1.6);
-      for (let rad = 3 + 1.6 * Math.sin(u * Math.PI); rad <= SLASH.range; rad += 0.4)
-        g.add(sx(p.x + Math.cos(a) * rad), sy(p.y + Math.sin(a) * rad), fade * (0.5 + 0.5 * (rad / SLASH.range)), IVORY[0], IVORY[1], IVORY[2], code(stroke(a + Math.PI / 2)));
+    const swing = game.slashes.length > 0;
+    // 벨 때는 베는 쪽을 본다
+    const flip = swing ? Math.cos(game.slashes[0].ang) < 0 : p.side < 0;
+    stamp(k, pc, pr, heroRows(t, p.moving, swing), swing ? HERO_SWING_TINT : HERO_TINT, flip, -5, blink ? 0.45 : 1, ink);
+    // 다쳤으면 발밑에 체력 막대가 보인다
+    if (p.hp < p.maxHp && game.phase === 'fight') {
+      const n = Math.max(0, Math.round((p.hp / p.maxHp) * 7));
+      label(k, pc - 3, pr + 1, '='.repeat(n), 0.9, DANGER);
+      label(k, pc - 3 + n, pr + 1, '-'.repeat(7 - n), 0.35, STONE);
     }
   }
-  // 회전베기: 고리가 퍼져 나간다
-  if (p.spinT < 0.3) {
-    const rad = SPIN.r * smooth(p.spinT / 0.22);
-    for (let i = 0; i < 180; i++) {
-      const a = (i / 180) * Math.PI * 2 + t * 20;
-      for (const off of [0, -0.8])
-        g.add(sx(p.x + Math.cos(a) * (rad + off)), sy(p.y + Math.sin(a) * (rad + off)), (1 - p.spinT / 0.3) * (off ? 0.5 : 1), IVORY[0], IVORY[1], IVORY[2], code(stroke(a + Math.PI / 2)));
+
+  // 룬의 고리: 둘레에 글자가 천천히 돌고, 피해를 주는 순간 밝아진다
+  if (p.lv.aura) {
+    const rad = AURA.r[p.lv.aura - 1];
+    const beat = Math.max(0, 1 - (AURA.every - Math.max(0, p.cd.aura)) * 5);
+    const n = Math.round(rad * 9);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + t * 0.4;
+      g.add(sx(p.x + Math.cos(a) * rad), sy(p.y + Math.sin(a) * rad), 0.22 + 0.5 * beat, MANA[0], MANA[1], MANA[2], code(i % 4 ? ':' : 'XYVT'[(i >> 2) % 4]));
+    }
+  }
+  // 도는 칼날: 칼날마다 지나온 자리에 꼬리가 남는다
+  if (p.lv.orbit) {
+    const lv = p.lv.orbit - 1;
+    for (let i = 0; i < ORBIT.count[lv]; i++) {
+      const a = p.orbit + (i / ORBIT.count[lv]) * Math.PI * 2;
+      for (let j = 0; j < 9; j++) {
+        const b = a - j * 0.09;
+        g.add(sx(p.x + Math.cos(b) * ORBIT.r[lv]), sy(p.y + Math.sin(b) * ORBIT.r[lv]), j ? 0.5 * (1 - j / 9) : 1, STEEL[0], STEEL[1], STEEL[2], code(j ? stroke(b + Math.PI / 2) : 'X'));
+      }
+    }
+  }
+  // 베는 궤적: 초승달 모양이 한쪽 끝에서 다른 쪽 끝으로 지나간다
+  for (const s of game.slashes) {
+    const e = s.t / (SLASH_TIME - 0.02);
+    for (let i = 0; i <= 44; i++) {
+      const u = i / 44;
+      if (u > e + 0.1) break;
+      const a = s.ang - SWORD.half + 2 * SWORD.half * u;
+      const fade = Math.max(0, 1 - (e - u) * 1.6);
+      for (let rad = s.range * 0.78 + 0.9 * Math.sin(u * Math.PI); rad <= s.range; rad += 0.5)
+        g.add(sx(s.x + Math.cos(a) * rad), sy(s.y + Math.sin(a) * rad), fade * (0.5 + 0.5 * (rad / s.range)), IVORY[0], IVORY[1], IVORY[2], code(stroke(a + Math.PI / 2)));
+    }
+  }
+  // 낙뢰: 하늘에서 꺾이며 내려와 떨어진 자리에 고리가 번진다
+  for (const s of game.strikes) {
+    const e = s.t / BOLT_TIME;
+    const c = sx(s.x);
+    const r = Math.round(sy(s.y));
+    let x = c;
+    for (let y = r; y >= 0 && e < 0.7; y--) {
+      const bend = Math.round(hash(y, Math.floor(s.x * 7)) * 3) - 1;
+      g.put(x, y, -4, 1 - e, 255, 250, 200, code(bend > 0 ? '/' : bend < 0 ? '\\' : '|'));
+      x += bend;
+    }
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      g.add(sx(s.x + Math.cos(a) * BOLT.r * e), sy(s.y + Math.sin(a) * BOLT.r * e), 1 - e, GOLD[0], GOLD[1], GOLD[2], code('*'));
     }
   }
   // 검기: 날아가는 초승달과 꼬리
@@ -381,77 +551,91 @@ function hero(k: Cam, ghosts: Ghost[]) {
     const col = s.kind === 1 ? IVORY : s.kind === 2 ? STONE : BLAST;
     g.add(sx(s.x), sy(s.y), e, col[0], col[1], col[2], code(e > 0.6 ? '*' : e > 0.3 ? "'" : '.'));
   }
-  if (k.view.aim && game.phase === 'fight') g.put(sx(k.view.aim.x), sy(k.view.aim.y), -6, 0.7, IVORY[0], IVORY[1], IVORY[2], code('+'));
 }
 
 const bar = (v: number, max: number, width: number, on: string, off: string) => {
-  const n = Math.round((Math.max(0, v) / max) * width);
+  const n = Math.round((Math.max(0, Math.min(max, v)) / max) * width);
   return on.repeat(n) + off.repeat(width - n);
 };
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // 글귀를 쓰기 전에 그 자리의 그림을 지운다 (빈칸은 칸을 비운다)
 const wipe = (g: Grid, x: number, y: number, width: number) => g.text(x, y, ' '.repeat(Math.max(0, width)), 0, 0, 0, 0);
 
-function hud(k: Cam) {
-  const { g, game, z, sx, sy } = k;
-  const { cols, rows } = g;
+// 화면 글자판은 영문만 쓴다 (한글은 칸 폭이 달라 줄이 어긋난다)
+const LABEL: Record<UpgradeId, string> = { sword: 'SWORD', wave: 'WAVE', orbit: 'BLADES', bolt: 'BOLT', aura: 'RUNE', might: 'MIGHT', haste: 'HASTE', boots: 'BOOTS', magnet: 'MAGNET', heart: 'HEART' };
+
+// 세계에 붙어 움직이는 글귀: 떠오르는 숫자와 화면 밖의 용을 가리키는 화살표
+function floats(k: Cam) {
+  const { game, z, fx, fy } = k;
   const p = game.player;
   const b = game.boss;
   for (const f of game.texts) {
-    const col = f.kind === 1 ? GOLD : f.kind === 2 ? DANGER : f.kind === 3 ? HEAL : f.kind === 4 ? EMBER : IVORY;
+    const col = f.kind === 1 ? GOLD : f.kind === 2 ? DANGER : f.kind === 3 ? HEAL : f.kind === 4 ? EMBER : STEEL;
     const s = f.kind === 1 ? `${f.s}!` : f.s;
-    g.text(Math.round(sx(f.x) - s.length / 2), Math.round(sy(f.y) - f.t * 4 * z), s, 1 - f.t * 0.6, col[0], col[1], col[2]);
+    label(k, fx(f.x) - s.length / 2, fy(f.y) - f.t * 4 * z, s, 1 - f.t * 0.8, col);
   }
-  if (game.phase === 'title') return;
-
-  // 위: 용의 이름과 체력
-  const wide = Math.min(72, cols - 12);
-  const x0 = Math.round((cols - wide) / 2);
-  const hot = b.enraged ? EMBER : DANGER;
-  for (let r = 0; r < 4; r++) wipe(g, x0 - 3, r, wide + 6);
-  g.text(x0, 1, b.enraged ? 'DRAGON  enraged' : 'DRAGON', 0.9, hot[0], hot[1] + 50, hot[2] + 50);
-  const left = `${Math.ceil(b.hp)} / ${BOSS_HP}`;
-  g.text(x0 + wide - left.length, 1, left, 0.7, STONE[0], STONE[1], STONE[2]);
-  g.text(x0 - 1, 2, `[${bar(b.hp, BOSS_HP, wide, '#', '.')}]`, 0.95, hot[0], hot[1], hot[2]);
-  // 분노가 시작되는 체력 반 지점의 눈금
-  if (!b.enraged) g.text(x0 + Math.round(wide / 2), 3, '^', 0.5, STONE[0], STONE[1], STONE[2]);
-
-  // 아래: 체력, 마력, 기술. 넓은 화면에서는 가운데에, 좁은 화면에서는 왼쪽에 둔다.
-  const cd = (v: number) => (v > 0 ? ` ${v.toFixed(1)}` : '');
-  const slots: [string, boolean][] = [
-    ['J slash', true],
-    [`K wave${cd(p.waveCd)}`, p.waveCd <= 0 && p.mp >= WAVE.mp],
-    [`L spin${cd(p.spinCd)}`, p.spinCd <= 0 && p.mp >= SPIN.mp],
-    [`SPACE roll${cd(p.dashCd)}`, p.dashCd <= 0],
-    [`Q potion x${p.potions}`, p.potions > 0],
-  ];
-  const span = slots.reduce((n, [label]) => n + label.length + 3, -1);
-  const roomy = cols >= span + 40;
-  const x1 = roomy ? Math.round((cols - span) / 2) : 1;
-  const meter = roomy ? span - 12 : 20;
-  for (let r = rows - 5; r < rows; r++) wipe(g, x1 - 2, r, Math.max(span, meter + 12) + 4);
-  const low = p.hp < 35;
-  const life = low ? DANGER : HEAL;
-  g.text(x1, rows - 4, `HP [${bar(p.hp, MAX_HP, meter, '|', '.')}] ${String(Math.ceil(p.hp)).padStart(3)}`, 0.95, life[0], life[1], life[2]);
-  g.text(x1, rows - 3, `MP [${bar(p.mp, MAX_MP, meter, '|', '.')}] ${String(Math.floor(p.mp)).padStart(3)}`, 0.95, MANA[0], MANA[1], MANA[2]);
-  let x = x1;
-  for (const [label, ready] of slots) {
-    if (x + label.length + 2 > cols) break;
-    const col = ready ? IVORY : STONE;
-    g.text(x, rows - 2, `[${label}]`, ready ? 0.9 : 0.4, col[0], col[1], col[2]);
-    x += label.length + 3;
-  }
-  const clock = `${Math.floor(game.t / 60)}:${String(Math.floor(game.t % 60)).padStart(2, '0')}`;
-  g.text(cols - clock.length - 2, rows - 2, clock, 0.6, STONE[0], STONE[1], STONE[2]);
-
-  // 화면 밖의 용이 어느 쪽에 있는지
-  const bc = sx(b.x);
-  const br = sy(b.y);
-  if (bc < 0 || bc >= cols || br < 4 || br >= rows - 5) {
+  const bc = fx(b.x);
+  const br = fy(b.y);
+  if (b.here && game.phase === 'fight' && (bc < 0 || bc >= k.g.cols || br < 5 || br >= k.g.rows - 3)) {
     const a = Math.atan2(b.y - p.y, b.x - p.x);
     const arrow = Math.abs(turn(a, 0)) < 0.8 ? '>' : Math.abs(turn(a, Math.PI)) < 0.8 ? '<' : Math.sin(a) > 0 ? 'v' : '^';
-    g.text(Math.round(sx(p.x) + Math.cos(a) * 9), Math.round(sy(p.y) + Math.sin(a) * 5), arrow, 0.9, DANGER[0], DANGER[1], DANGER[2]);
+    label(k, fx(p.x) + Math.cos(a) * 12, fy(p.y) + Math.sin(a) * 7, arrow, 0.9, DANGER);
   }
+}
+
+function hud(k: Cam) {
+  const { hud: g, game } = k;
+  const { cols, rows } = g;
+  const p = game.player;
+  const b = game.boss;
+  // 시작 화면과 결과 화면에서는 안내가 대신 보여 준다
+  if (game.phase === 'title' || game.phase === 'won' || game.phase === 'lost') return;
+
+  // 맨 위: 경험치 막대가 화면을 가로지르고(오른쪽 끝은 홈 버튼 자리라 비운다), 그 아래에 처치 수, 시계, 용이 오기까지 남은 시간이 있다
+  for (let r = 0; r < 3; r++) wipe(g, 0, r, cols);
+  const level = ` LV ${p.level} `;
+  g.text(0, 0, level, 1, IVORY[0], IVORY[1], IVORY[2]);
+  g.text(level.length, 0, bar(p.xp, p.next, cols - level.length - 10, '=', '.'), 0.85, MANA[0], MANA[1], MANA[2]);
+  g.text(2, 1, `KILLS ${p.kills}`, 0.85, STONE[0], STONE[1], STONE[2]);
+  const now = clock(game.t);
+  g.text(Math.round((cols - now.length) / 2), 1, now, 1, IVORY[0], IVORY[1], IVORY[2]);
+  if (!b.here) {
+    const left = `DRAGON ${clock(Math.max(0, BOSS_AT - game.t))}`;
+    const soon = BOSS_AT - game.t < 30 ? DANGER : STONE;
+    g.text(Math.round(cols / 2) + 6, 1, left, soon === DANGER ? 0.95 : 0.85, soon[0], soon[1], soon[2]);
+  } else {
+    // 용이 나타나면 이름과 체력이 그 아래에 뜬다
+    const wide = Math.min(72, cols - 12);
+    const x0 = Math.round((cols - wide) / 2);
+    const hot = b.enraged ? EMBER : DANGER;
+    for (let r = 3; r < 6; r++) wipe(g, x0 - 3, r, wide + 6);
+    g.text(x0, 3, b.enraged ? 'DRAGON  enraged' : 'DRAGON', 0.9, hot[0], hot[1] + 50, hot[2] + 50);
+    const left = `${Math.ceil(b.hp)} / ${BOSS_HP}`;
+    g.text(x0 + wide - left.length, 3, left, 0.7, STONE[0], STONE[1], STONE[2]);
+    g.text(x0 - 1, 4, `[${bar(b.hp, BOSS_HP, wide, '#', '.')}]`, 0.95, hot[0], hot[1], hot[2]);
+  }
+
+  // 왼쪽 아래: 가진 무기와 능력의 단계
+  const owned = (Object.keys(LABEL) as UpgradeId[]).filter((id) => p.lv[id] > 0);
+  owned.forEach((id, i) => {
+    const y = rows - 3 - owned.length + i;
+    const weapon = (WEAPONS as UpgradeId[]).includes(id);
+    const col = weapon ? GOLD : MANA;
+    wipe(g, 0, y, 15);
+    g.text(1, y, LABEL[id].padEnd(7) + bar(p.lv[id], 5, 5, '*', '.'), weapon ? 0.95 : 0.8, col[0], col[1], col[2]);
+  });
+  // 아래: 체력과 구르기
+  const meter = Math.min(40, cols - 34);
+  const hp = `HP [${bar(p.hp, p.maxHp, meter, '|', '.')}] ${Math.ceil(p.hp)}/${p.maxHp}`;
+  const roll = p.dashCd > 0 ? `[roll ${p.dashCd.toFixed(1)}]` : '[SPACE roll]';
+  const x1 = Math.max(1, Math.round((cols - hp.length - roll.length - 2) / 2));
+  wipe(g, x1 - 2, rows - 2, hp.length + roll.length + 6);
+  wipe(g, x1 - 2, rows - 1, hp.length + roll.length + 6);
+  const life = p.hp < p.maxHp * 0.35 ? DANGER : HEAL;
+  g.text(x1, rows - 2, hp, 0.95, life[0], life[1], life[2]);
+  const ready = p.dashCd <= 0 ? IVORY : STONE;
+  g.text(x1 + hp.length + 2, rows - 2, roll, p.dashCd <= 0 ? 0.9 : 0.4, ready[0], ready[1], ready[2]);
 }
 
 // 구른 자리에 남는 잔상
@@ -459,6 +643,7 @@ interface Ghost {
   x: number;
   y: number;
   life: number;
+  flip: boolean;
 }
 
 // 게임 상태를 글자 격자로 옮기는 화가. 잔상처럼 그림에만 필요한 것은 여기서 기억한다.
@@ -466,30 +651,41 @@ export function createPainter() {
   let ghosts: Ghost[] = [];
   let lastT = 0;
 
-  return function paint(g: Grid, game: Game, view: View, t: number) {
+  // 세계를 칸에 맞춰 그린 뒤, 카메라가 칸에서 벗어난 만큼(칸 단위)을 돌려준다. 렌더러가 그만큼 밀어서 그리면 화면이 매끄럽게 흐른다.
+  return function paint(g: Grid, game: Game, view: View, t: number, layers?: Layers) {
     const dt = Math.min(0.1, Math.max(0, t - lastT));
     lastT = t;
     const z = zoom(g);
     const ax = z * g.aspect;
     const b = game.boss;
     const p = game.player;
-    if (p.dash > 0) ghosts.push({ x: p.x, y: p.y, life: 0.25 });
+    if (p.dash > 0) ghosts.push({ x: p.x, y: p.y, life: 0.25, flip: p.side < 0 });
     ghosts = ghosts.filter((gh) => (gh.life -= dt) > 0);
+    const shot = snap(g, view);
+    // 겹이 없으면 매끄럽게 움직이는 글자도 칸에 맞춘 카메라로 그린다
+    const eye = layers ? view : shot;
     const k: Cam = {
       g,
       game,
-      view,
+      view: shot,
       t,
       z,
       ax,
-      sx: (wx) => g.cols / 2 + (wx - view.x) * ax,
-      sy: (wy) => g.rows / 2 + (wy - view.y) * z,
+      sx: (wx) => g.cols / 2 + (wx - shot.x) * ax,
+      sy: (wy) => g.rows / 2 + (wy - shot.y) * z,
+      fx: (wx) => g.cols / 2 + (wx - eye.x) * ax,
+      fy: (wy) => g.rows / 2 + (wy - eye.y) * z,
+      out: layers?.sprites ?? null,
+      hud: layers?.hud ?? g,
       // 공격을 준비하면 날개를 펴고, 포효할 때는 떤다
       pose: { flap: 1.2 * Math.sin(t * 2.4) + (b.casting > 0 ? 1.8 : 0) + (b.roar > 0 ? 2 * Math.sin(t * 18) : 0), sway: Math.sin(t * 1.3) * 0.5, t },
     };
     ground(k);
     dragon(k);
+    mobs(k);
     hero(k, ghosts);
+    floats(k);
     hud(k);
+    return { x: (view.x - shot.x) * ax, y: (view.y - shot.y) * z };
   };
 }

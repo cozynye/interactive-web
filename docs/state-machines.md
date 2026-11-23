@@ -70,19 +70,26 @@ reducedMotion        → still
 게임 상태는 `Game` 객체 하나에 있고 `update(game, input, dt)`만 고친다.
 
 ```
-title → fight → won 또는 lost → (1.2초 뒤 시작 입력) → fight
+title → fight ⇄ levelup → won 또는 lost → (1.2초 뒤 시작 입력) → fight
 ```
 
-화면은 지금 단계를 `main[data-phase]`에 적는다. 전투 안에서 상태 노릇을 하는 값은 아래와 같다.
+화면은 지금 단계를 `main[data-phase]`에 적는다. `levelup`은 경험치가 차거나 상자를 열었을 때이고, 고를 때까지 싸움의 시간(`game.t`)이 흐르지 않는다. 선택지가 연달아 뜨면 단계 이름이 그대로라서 화면은 `game.offers`가 늘었는지도 함께 본다. 싸움 안에서 상태 노릇을 하는 값은 아래와 같다.
 
 | 상태머신 | 상태 | 상태를 담은 변수 |
 |---|---|---|
+| 성장 | 경험치 모음 → 고르기(셋 중 하나) → 경험치 모음 | `player.xp`, `player.next`, `player.level`, `game.choices`, 무기와 능력의 단계 `player.lv` |
+| 무기 | 기다림 → 발동 (무기마다 따로) | `player.cd[무기]`, 뒤쪽 베기 `player.backIn`, 칼날 각도 `player.orbit` |
+| 무리 | 화면 밖에서 나타남 → 다가옴 → 쓰러져 구슬이 됨 | `game.spawn`(다음 적까지), `game.eliteAt`(다음 우두머리), `Enemy.hp`, 밀려나는 속도 `Enemy.kx`·`ky` |
+| 구슬 | 놓임 → 끌려옴 → 주움 | `Gem.pulled`, `Gem.xp`(0은 고기, -1은 상자) |
+| 용의 등장 | 없음 → 나타나 포효(`BOSS_AT` 180초) | `boss.here` |
 | 용의 행동 | 쉼(다가오며 몸을 돌림) → 공격 준비 → 쉼 | `boss.wait`(다음 행동까지), `boss.casting`(공격 중 남은 시간), `boss.last`(직전 공격) |
 | 용의 돌진 | 준비 → 달림 → 끝 | `boss.chargeIn`, `boss.charging`, `boss.tx`·`ty` |
 | 용의 분노 | 평소 → 포효(1.6초, 피해 없음) → 분노 | `boss.enraged`, `boss.roar` |
 | 공격 범위 | 숨음(`t < 0`) → 예고(`0 ≤ t < warn`) → 판정(한 번) → 번쩍임(0.28초) → 사라짐 | `Zone.t`, `Zone.hit`, `Zone.seek`(나타나기 전까지 플레이어를 따라감) |
-| 플레이어 | 걷기 / 구르기 / 무적 | `player.dash`, `player.safe`, 기술별 `*Cd` |
-| 타격 멈춤 | 흐름 / 멈춤 | `game.stop` (0보다 크면 그 틱은 아무것도 진행하지 않는다) |
+| 플레이어 | 걷기 / 구르기 / 무적 | `player.dash`, `player.dashCd`, `player.safe` |
+| 타격 멈춤 | 흐름 / 멈춤 | `game.stop` (0보다 크면 그 틱은 아무것도 진행하지 않는다. 내가 맞았을 때와 용이 쓰러질 때만 쓴다) |
+
+게임 화면의 루프는 프레임마다 `step(game, 입력, dt)`을 한 번 부르고, `step`은 dt를 `STEP`(1/60초)을 넘지 않는 같은 길이의 틱으로 나눠 `update`를 돌린다. 남는 시간을 다음 프레임으로 넘기지 않아서 프레임과 틱이 어긋나 움직임이 떨리는 일이 없다. 카메라(`View`)는 플레이어를 한가운데에 두고, 용이 있으면 `pull`만큼, 시작 화면에서는 `lift`만큼 옮겨 본다.
 
 게임 화면은 다른 애니메이션과 달리 `createTicker`를 쓰지 않는다. 움직임 줄이기가 켜져 있으면 `still`이 되어 게임을 할 수 없기 때문이고, 대신 탭이 가려지면 루프를 멈추고 움직임 줄이기에서는 화면 흔들림만 끈다. 홈 타일의 시연(`demo.ts`)은 아스키 무대에서 돌기 때문에 다른 장면처럼 티커를 따른다.
 
