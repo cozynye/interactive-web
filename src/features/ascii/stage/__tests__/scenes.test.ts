@@ -4,7 +4,7 @@ import { donutFrame } from '../../donut';
 import { blackholePhase } from '../blackhole';
 import { orangesOn } from '../capybara';
 import { dome, Grid, lit, tone, TONES } from '../grid';
-import { knightPhase } from '../knight';
+import { knightPhase, knightStance } from '../knight';
 import { rosePhase } from '../rose';
 import { SCENES } from '../scenes';
 import { sigilPhase } from '../sigil';
@@ -37,7 +37,8 @@ describe.each(Object.entries(SCENES))('장면 %s', (_name, create) => {
     expect(broken).toBe(0);
     // 한 프레임에 평균 스무 칸은 켜져 있어야 빈 화면이 아니다
     expect(lit / 360).toBeGreaterThan(20);
-  });
+    // 기사는 이 12초 동안 자세 여러 장을 구워서 오래 걸린다
+  }, 30000);
 
   it('도중에 격자 크기가 바뀌어도 이어서 돈다', () => {
     const g = new Grid();
@@ -111,8 +112,12 @@ describe('새 장면의 단계', () => {
     expect([0, 2, 6, 9, 60].map(sigilPhase)).toEqual(['drop', 'circle', 'rise', 'hover', 'hover']);
   });
 
-  it('기사는 땅 → 몸 → 검의 빛 → 바람 순서로 넘어간다', () => {
+  it('기사는 땅 → 몸 → 창끝의 빛 → 바람 순서로 넘어간다', () => {
     expect([0, 3, 5, 8].map(knightPhase)).toEqual(['ground', 'body', 'glint', 'wind']);
+  });
+
+  it('기사는 12초에 일어섰다가 14초 뒤에 다시 앉고 30초마다 되풀이한다', () => {
+    expect([5, 13, 17, 27, 31, 43, 47].map(knightStance)).toEqual(['sit', 'rising', 'stand', 'sitting', 'sit', 'rising', 'stand']);
   });
 
   it('귤은 9초마다 하나씩 셋까지 쌓였다가 고개가 흔들리면 다 떨어진다', () => {

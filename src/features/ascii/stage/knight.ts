@@ -1,8 +1,8 @@
 import { code, Grid, hash, Scene, smooth, tone } from './grid';
-import { bakeKnight, BAND, BLADE_X, BH, BW, CLOTH, FACE, LEATHER, MAIL, ROCK, STEEL, X0, X1, Y0, Y1 } from './knightModel';
+import { bakeKnight, BAND, CLOTH, LANCE_X, LEATHER, MAIL, PENNON, POSES, ROCK, SLIT, STEEL, TIP, X0, X1, Y0, Y1 } from './knightModel';
 
 const TAU = Math.PI * 2;
-// 색은 흰 빛 하나와 눈을 가린 띠의 빨강 하나만 쓴다
+// 색은 흰 빛 하나와 빨강 하나만 쓴다. 빨강은 창의 깃발과 겉옷·방패의 십자다.
 const IVORY = [244, 240, 232];
 const SHADE = [150, 158, 178];
 const RED = [232, 40, 44];
@@ -13,22 +13,52 @@ const RAMPS: string[] = [];
 RAMPS[CLOTH] = '.,:;!i|1tfLEB';
 RAMPS[STEEL] = '.:-=+*%#@';
 RAMPS[BAND] = '=+*%#@';
-RAMPS[FACE] = '.:;=+ox';
+RAMPS[SLIT] = ' .:';
 RAMPS[LEATHER] = '.-~=zZ';
 RAMPS[ROCK] = '.,:;^?%&';
 RAMPS[MAIL] = '.:coO0Q8';
 // 사슬은 한 칸 건너 다른 글자를 써서 고리가 엮인 것처럼 보인다
 const LINKS = '.:<xX%&#';
+// pick에 적는 번호가 이보다 크면 섞는 두 장 가운데 둘째 장의 점이다
+const SECOND = 1 << 20;
 // 앞뒤 덩어리의 깊이 차이가 이보다 크면 가장자리로 본다 (모형 단위)
 const RIM = 0.06;
 
-// 처음 한 번 펼쳐지는 순서(초): 풀밭이 깔림 → 기사가 위에서 아래로 드러남 → 검에 빛이 흐름 → 바람이 불어 띠가 풀림
+// 처음 한 번 펼쳐지는 순서(초): 풀밭이 깔림 → 기사가 위에서 아래로 드러남 → 창끝에 빛이 흐름 → 바람이 불어 깃발이 펴짐
 const BODY = [1.2, 4.6];
 const GLINT_AT = 4.9;
 const WIND_AT = 5.6;
+// 그 뒤로는 CYCLE초마다 되풀이한다: 일어섬(RISE초) → 서 있음 → 앉음(RISE초) → 앉아 있음. 앉아 있는 동안 한 번 가까이 다가가 본다.
+const STAND_AT = 12;
+const CYCLE = 30;
+const RISE = 2.4;
+const SIT_AT = 14;
+const CLOSE = [19, 27];
+// 보는 틀: 배율과 화면 한가운데에 놓을 모형의 점. 처음에는 기사만 가까이 보다가 물러나서 창끝까지 담는다.
+const NEAR = [1, 0.05, 1];
+const WIDE = [0.62, -0.1, 1.66];
+const FACE = [1.05, -0.15, 1.3];
 
 export function knightPhase(t: number) {
   return t < BODY[0] ? 'ground' : t < BODY[1] ? 'body' : t < WIND_AT ? 'glint' : 'wind';
+}
+
+// 일어선 정도(0 앉음 ~ 1 섬)
+function standing(t: number) {
+  if (t < STAND_AT) return 0;
+  const c = (t - STAND_AT) % CYCLE;
+  return c < SIT_AT ? smooth(c / RISE) : 1 - smooth((c - SIT_AT) / RISE);
+}
+
+export function knightStance(t: number) {
+  const s = standing(t);
+  return s <= 0 ? 'sit' : s >= 1 ? 'stand' : (t - STAND_AT) % CYCLE < SIT_AT ? 'rising' : 'sitting';
+}
+
+// 가까이 다가간 정도(0~1)
+function closeUp(t: number) {
+  const c = t < STAND_AT ? -1 : (t - STAND_AT) % CYCLE;
+  return smooth((c - CLOSE[0]) / 2.5) * (1 - smooth((c - CLOSE[1] + 2.5) / 2.5));
 }
 
 // 바람 세기(0.4~1.3쯤). 주기가 맞물리지 않는 물결을 섞어서 같은 돌풍이 되풀이되지 않는다.
@@ -97,10 +127,10 @@ function ribbon(g: Grid, ox: number, oy: number, u: number, rb: Ribbon, t: numbe
     }
 }
 
-// 검을 세워 쥐고 앉은 기사. 눈을 가린 붉은 띠와 옷자락이 바람 세기를 따라 날린다.
+// 창을 세워 쥐고 바위에 앉은 중세 기사. 몇 초 뒤에 일어섰다가 다시 앉고, 창의 붉은 깃발과 옷자락이 바람 세기를 따라 날린다.
 // 입체 모형을 한 번 구워서 밝기를 글자로 옮기므로 갑옷과 천의 굴곡이 명암으로 보인다.
 export function createKnight(): Scene {
-  let baked = bakeKnight(0);
+  let baked = bakeKnight(0, 0);
   let letters = 0;
   let pick = new Int32Array(0);
 
@@ -111,10 +141,14 @@ export function createKnight(): Scene {
     frame(g: Grid, t: number) {
       const { cols, rows, aspect } = g;
       // 모형 단위 1이 차지하는 줄 수: 기사가 화면 높이를 거의 채운다
-      const u = Math.min(rows * 0.405, cols / (3.3 * aspect));
+      // 보는 틀: 처음에는 가까이, 기사가 다 드러나면 물러나고, 가끔 다시 다가간다
+      const back = smooth((t - BODY[1]) / 4);
+      const near = closeUp(t);
+      const cam = [0, 1, 2].map((i) => NEAR[i] + (WIDE[i] - NEAR[i]) * back + (FACE[i] - WIDE[i]) * near);
+      const u = Math.min(rows * 0.405, cols / (3.3 * aspect)) * cam[0];
       const ax = u * aspect;
-      const gy = Math.round(rows * 0.5 + u * 0.97);
-      const ox = cols * 0.5 - 0.1 * ax;
+      const gy = Math.round(rows * 0.5 + u * cam[2]);
+      const ox = cols * 0.5 - cam[1] * ax;
       const wind = smooth((t - WIND_AT) / 2.5);
       const gust = gustAt(t) * (0.2 + 0.8 * wind);
       const breath = Math.sin(t * 1.1);
@@ -138,9 +172,23 @@ export function createKnight(): Scene {
 
       // 기사: 구워 둔 그림을 칸마다 읽어 글자로 옮긴다. 위에서 아래로 드러난다.
       // 모형은 프레임마다 조금씩 나눠 굽는다. 드러나는 줄보다 굽는 줄이 앞서간다.
-      if (baked.rows < BH) baked = bakeKnight(7);
+      // 지금 보여 줄 자세를 고르고, 남는 시간에는 아직 덜 구운 자세를 앉음, 섬, 중간 순으로 이어서 굽는다.
+      const done = (i: number) => bakeKnight(i, 0).rows >= bakeKnight(i, 0).h;
+      const next = [0, POSES - 1, 3, 1, 5, 2, 4].find((i) => !done(i));
+      if (next !== undefined) bakeKnight(next, t > BODY[1] ? 10 : 7);
+      // 이웃한 두 장 사이는 덩어리 단위로 섞어서 넘어간다. 아직 덜 구운 장은 가장 가까운 다 구운 장으로 대신한다.
+      const at = standing(t) * (POSES - 1);
+      const ready = (i: number) => {
+        for (let k = 0; k < POSES; k++) for (const j of [i - k, i + k]) if (j >= 0 && j < POSES && done(j)) return j;
+        return 0;
+      };
+      const lo = ready(Math.floor(at));
+      const hi = ready(Math.min(POSES - 1, Math.floor(at) + 1));
+      const blend = smooth((at - Math.floor(at) - 0.25) / 0.5);
+      const other = bakeKnight(hi, 0);
+      baked = bakeKnight(lo, 0);
       const line = Y1 - ((t - BODY[0]) / (BODY[1] - BODY[0])) * (Y1 - Y0 + 0.3);
-      // 검의 날을 따라 가끔 빛이 흐른다
+      // 창의 쇠붙이를 따라 가끔 빛이 흐른다
       const glint = ((t - GLINT_AT) / 5.5) % 1;
       const c0 = Math.max(0, Math.floor(ox + X0 * ax));
       const c1 = Math.min(cols - 1, Math.ceil(ox + X1 * ax));
@@ -155,25 +203,31 @@ export function createKnight(): Scene {
         if (y > Y1 || y < Y0 || y < line) continue;
         // 숨을 쉬면 윗몸이 아주 조금 오르내린다
         const by = y - breath * 0.006 * smooth((y - 0.7) / 0.8);
-        const j = Math.floor(((Y1 - by) / (Y1 - Y0)) * BH);
-        if (j < 0 || j >= BH) continue;
-        // 아직 굽지 않은 줄을 그려야 하면 거기까지는 기다렸다가 그린다
-        if (j >= baked.rows) baked = bakeKnight();
+        // 아직 굽지 않은 줄을 그려야 하면 거기까지는 기다렸다가 그린다 (처음 드러날 때의 앉은 자세만 해당한다)
+        if (Math.floor(((Y1 - by) / (Y1 - Y0)) * baked.h) >= baked.rows) baked = bakeKnight(lo);
         for (let c = c0; c <= c1; c++) {
+          // 칸 몇 개를 묶은 덩어리마다 두 장 가운데 하나를 고른다
+          const src = lo !== hi && hash(Math.floor(c / 3) * 1.7, Math.floor(r / 2) * 2.3) < blend ? other : baked;
+          const j = Math.floor(((Y1 - by) / (Y1 - Y0)) * src.h);
+          if (j < 0 || j >= src.h) continue;
           const x = (c - ox) / ax;
           // 오른쪽 아래로 늘어진 옷자락은 바람에 밀린다
           const flap = gust * 0.035 * smooth((x - 0.15) / 0.5) * smooth((0.9 - y) / 0.6) * (Math.sin(y * 13 - t * 3.3) + 0.6);
-          let i = Math.floor(((x - flap - X0) / (X1 - X0)) * BW);
-          if (i < 0 || i >= BW) continue;
-          if (baked.mat[j * BW + i] !== CLOTH && flap) i = Math.min(BW - 1, Math.max(0, Math.floor(((x - X0) / (X1 - X0)) * BW)));
-          const m = baked.mat[j * BW + i];
+          let i = Math.floor(((x - flap - X0) / (X1 - X0)) * src.w);
+          if (i < 0 || i >= src.w) continue;
+          if (src.mat[j * src.w + i] !== CLOTH && flap) i = Math.min(src.w - 1, Math.max(0, Math.floor(((x - X0) / (X1 - X0)) * src.w)));
+          const m = src.mat[j * src.w + i];
           // 해진 옷단
           if (m === 255 || (m === CLOTH && y < 0.2 && hash(c, 5) > 0.35 + y * 3)) continue;
-          pick[(r - r0 + 1) * w + c - c0 + 1] = j * BW + i;
+          pick[(r - r0 + 1) * w + c - c0 + 1] = j * src.w + i + (src === other && lo !== hi ? SECOND : 0);
         }
       }
+      // 칸이 고른 그림에서 값을 읽는다
+      const matAt = (k: number) => (k >= SECOND ? other.mat[k - SECOND] : baked.mat[k]);
+      const farAt = (k: number) => (k >= SECOND ? other.far[k - SECOND] : baked.far[k]);
       // 옆 칸이 비었거나 훨씬 뒤에 있으면 1
-      const behind = (at: number, z: number) => (pick[at] < 0 || z - baked.far[pick[at]] > RIM ? 1 : 0);
+      // 섞는 동안 다른 장에서 온 옆 칸과는 깊이를 견주지 않는다. 견주면 덩어리의 경계마다 선이 그어진다.
+      const behind = (at: number, z: number, k: number) => (pick[at] < 0 || (pick[at] >= SECOND === k >= SECOND && z - farAt(pick[at]) > RIM) ? 1 : 0);
       for (let r = r0; r <= r1; r++) {
         const y = (gy - r) / u;
         const shown = smooth((y - line) / 0.16);
@@ -182,27 +236,23 @@ export function createKnight(): Scene {
           const k = pick[at];
           if (k < 0) continue;
           const x = (c - ox) / ax;
-          const m = baked.mat[k];
-          let l = baked.lum[k];
-          // 검날 가운데에는 홈이 파여 있어서 양쪽 날만 밝다
-          if (m === STEEL && y < 1.2 && Math.abs(x - BLADE_X) < 0.5 / ax) l *= 0.4;
-          if (m === STEEL && glint > 0 && glint < 0.2 && x < -0.55) l += Math.exp(-Math.pow((y - glint * 8) / 0.07, 2)) * 0.8;
+          const m = matAt(k);
+          let l = k >= SECOND ? other.lum[k - SECOND] : baked.lum[k];
+          if (m === STEEL && glint > 0 && glint < 0.2 && Math.abs(x - LANCE_X) < 0.2) l += Math.exp(-Math.pow((y - 1.6 - glint * 9) / 0.07, 2)) * 0.8;
           // 그려지는 줄은 하얗게 빛난다
           const edge = y - line < 0.05 ? 1 : 0;
-          // 띠는 그늘에서도 붉게 보인다
+          // 십자는 그늘에서도 붉게 보인다
           if (m === BAND) l = 0.6 + 0.4 * l;
-          // 챙 그늘에 든 얼굴도 코와 턱은 알아볼 수 있게 한다
-          if (m === FACE) l = 0.3 + 0.7 * l;
           let v = Math.min(1, Math.max(0, l * 1.15 + edge));
           // 글자: 재질의 글자 묶음에서 밝기에 맞는 것을 고른다. 단계의 경계는 칸마다 조금씩 흩어서 띠가 지지 않게 한다.
           const ramp = m === MAIL && (c + r) % 2 ? LINKS : RAMPS[m];
           let ch = ramp.charCodeAt(Math.max(0, Math.min(ramp.length - 1, Math.floor((v + (hash(c * 1.3, r * 2.1) - 0.5) / ramp.length) * ramp.length))));
           // 가장자리: 덩어리의 끝에서는 선이 달리는 방향의 글자를 밝게 긋는다. 팔과 몸통, 판과 판이 선으로 갈라진다.
-          const z = baked.far[k];
-          const left = behind(at - 1, z);
-          const right = behind(at + 1, z);
-          const up = behind(at - w, z);
-          const down = behind(at + w, z);
+          const z = farAt(k);
+          const left = behind(at - 1, z, k);
+          const right = behind(at + 1, z, k);
+          const up = behind(at - w, z, k);
+          const down = behind(at + w, z, k);
           const gx = right - left;
           const gyy = down - up;
           if (gx || gyy) {
@@ -210,9 +260,9 @@ export function createKnight(): Scene {
             v = Math.min(1, Math.max(v, 0.5) + 0.22);
           } else if (!left && !up) {
             // 재질이 바뀌는 자리에도 가는 선을 넣는다 (가슴판과 허리띠, 사슬과 어깨판)
-            const side = pick[at + 1] >= 0 && baked.mat[pick[at + 1]] !== m;
-            const under = pick[at + w] >= 0 && baked.mat[pick[at + w]] !== m;
-            if (m !== BAND && (side || under)) ch = code(side && under ? '/' : side ? '|' : '_');
+            const side = pick[at + 1] >= 0 && pick[at + 1] >= SECOND === k >= SECOND && matAt(pick[at + 1]) !== m;
+            const under = pick[at + w] >= 0 && pick[at + w] >= SECOND === k >= SECOND && matAt(pick[at + w]) !== m;
+            if (m !== BAND && m !== SLIT && (side || under)) ch = code(side && under ? '/' : side ? '|' : '_');
           }
           const red = m === BAND;
           // 그늘은 푸르스름하게, 빛 받는 면은 따뜻한 흰색으로
@@ -220,27 +270,27 @@ export function createKnight(): Scene {
           g.put(c, r, 2, (0.26 + 0.8 * v) * shown, red ? RED[0] : SHADE[0] + (IVORY[0] - SHADE[0]) * k2, red ? RED[1] + 60 * v : SHADE[1] + (IVORY[1] - SHADE[1]) * k2, red ? RED[2] + 40 * v : SHADE[2] + (IVORY[2] - SHADE[2]) * k2, ch);
         }
       }
-      if (t > GLINT_AT && t < GLINT_AT + 0.5) g.rays(ox - 0.83 * ax, gy - 1.3 * u, Math.round(9 * (1 - (t - GLINT_AT) / 0.5)), IVORY[0], IVORY[1], IVORY[2]);
+      if (t > GLINT_AT && t < GLINT_AT + 0.5) g.rays(ox + TIP[0] * ax, gy - TIP[1] * u, Math.round(9 * (1 - (t - GLINT_AT) / 0.5)), IVORY[0], IVORY[1], IVORY[2]);
 
-      // 띠의 두 가닥: 머리 뒤 매듭에서 풀려 나와 바람에 날린다
+      // 창의 깃발: 끝이 두 갈래로 갈라진 천이 창끝 아래에 매여 바람에 날린다
       const out = smooth((t - WIND_AT + 0.4) / 2);
-      const hy = gy - 1.6 * u;
-      ribbon(g, ox, hy, u, { x: 0.12, y: 0.0, len: 1.3, width: 0.12, amp: 0.16, ph: 0, z: 1.5 }, t, gust, out);
-      ribbon(g, ox, hy, u, { x: 0.12, y: 0.03, len: 1, width: 0.085, amp: 0.13, ph: 2.1, z: 1.4 }, t, gust, out);
+      const hy = gy - PENNON[1] * u;
+      ribbon(g, ox, hy, u, { x: PENNON[0], y: 0.0, len: 1.25, width: 0.13, amp: 0.15, ph: 0, z: 1.5 }, t, gust, out);
+      ribbon(g, ox, hy, u, { x: PENNON[0], y: 0.13, len: 1, width: 0.1, amp: 0.13, ph: 2.1, z: 1.4 }, t, gust, out);
 
-      // 띠 끝에서 뜯겨 나가는 실오라기와 바람에 실린 먼지
+      // 깃발 끝에서 뜯겨 나가는 실오라기와 바람에 실린 먼지
       let threads = 0;
       for (let i = 0; i < 70 && wind > 0; i++) {
         const sp = (0.08 + hash(i, 101) * 0.1) * (0.4 + gust);
         const p = (hash(i, 102) + t * sp) % 1;
         const red = i % 5 === 0;
         const y = red ? hy + (hash(i, 103) - 0.4) * u * 0.9 + p * u * 0.5 : rows * hash(i, 103);
-        const x = red ? ox + (1.2 + p * 2.2) * ax : p * (cols + 20) - 10;
+        const x = red ? ox + (PENNON[0] + 1.1 + p * 2.2) * ax : p * (cols + 20) - 10;
         if (red) threads++;
         g.add(x, y + Math.sin(p * 12 + i) * 1.5, (red ? 0.7 : 0.16) * Math.sin(p * Math.PI) * wind, red ? RED[0] : SHADE[0], red ? RED[1] : SHADE[1], red ? RED[2] : SHADE[2], code(red ? '~-`'[i % 3] : '.'));
       }
 
-      g.text(1, 1, `knight · ${knightPhase(t)}`, 0.5, 140, 150, 175);
+      g.text(1, 1, `knight · ${knightPhase(t)} · ${knightStance(t)}`, 0.5, 140, 150, 175);
       g.text(1, 2, `wind ${gust.toFixed(2)}   threads ${threads}`, 0.6, RED[0], RED[1] + 40, RED[2] + 40);
       g.text(1, 3, `letters ${letters.toLocaleString('en-US')}`, 0.5, 140, 150, 175);
       letters = 0;

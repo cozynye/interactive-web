@@ -5,7 +5,7 @@ import AsciiStage from '@/features/ascii/stage/AsciiStage';
 
 export const metadata: Metadata = {
   title: '기사',
-  description: '모닥불 앞에 앉은 기사의 스카프와 망토가 바람 세기를 따라 날린다.',
+  description: '창을 세워 쥐고 바위에 앉은 중세 기사가 일어섰다 앉고, 창의 붉은 깃발이 바람 세기를 따라 날린다.',
 };
 
 export default function Knight() {

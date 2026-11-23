@@ -54,6 +54,8 @@ reducedMotion        → still
 | 남산 | 산이 드러남 → 건물이 가장자리부터 솟음(1.2초~) → 타워가 아래에서 위로(1.8~5.4초) → 창에 불(3.6초~) → 전망대 불(5.7초) → 경광등(6.6초) → 첫 불꽃(7.3초) | `TOWER`, `LIGHT_AT`, `BEACON_AT`, `FIRST_SHOT`, 건물과 창은 식 안에 있다 |
 | 마법진 | `drop`(0~1초) → `circle`(1~4.9초) → `rise`(~8.2초) → `hover`. `sigilPhase()`가 이름을 돌려준다 | `DROP`, `CIRCLE_END`, `RISE`, 도형별 시각은 `rings`와 `poly()` 호출에 있다 |
 | 기사 | `ground`(0~1.2초) → `body`(~4.6초) → `glint`(~5.6초) → `wind`. `knightPhase()`가 이름을 돌려준다 | `BODY`, `GLINT_AT`, `WIND_AT` |
+| 기사의 자세 | `sit` → `rising`(2.4초) → `stand` → `sitting`(2.4초) → `sit`. 12초에 처음 일어서고 30초마다 되풀이한다. `knightStance()`가 이름을 돌려준다 | `STAND_AT`, `CYCLE`, `RISE`, `SIT_AT`. 자세는 구워 둔 그림 7장(`POSES`) 가운데 이웃한 두 장을 덩어리 단위로 섞어 보여 준다 |
+| 기사의 보는 틀 | 가까이(~4.6초) → 4초에 걸쳐 물러남 → 멀리. 앉아 있는 동안 주기의 19~27초에 한 번 다가갔다 물러난다 | `NEAR`, `WIDE`, `FACE`(배율과 가운데 점), `CLOSE` |
 | 카피바라 | 물 → 몸이 코끝부터(0.8~4초) → 첫 귤(4.6초) → 김(6초) → 유자 7개(6.4초~) → 눈(8.5초) | `DRAW`, `FIRST_ORANGE`, `STEAM_AT`, `YUZU_AT`, `SNOW_AT` |
 | 트리 | 아래에서 위로 쌓임(4초) → 전구가 아래부터 켜짐(4.5초~) → 별과 빛살(6.2초) → 눈 | `BUILD`, `LIGHTS_AT`, `STAR_AT` |
 | 은하 | 한 점(1.2초) → 별이 퍼지며 팔이 풀림(5.2초 동안) → 중심 번쩍임(6.6초) → 별똥별 | `BIRTH`, `SPREAD`, `FLASH` |
