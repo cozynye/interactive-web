@@ -135,13 +135,14 @@ export function createCapybara(): Scene {
 
       relief(spot, [-20, -16, 21, 0.3], bodyAt, { pal: FUR, z: 2, fine: true, show: shown });
       // 얼굴: 눈과 콧구멍, 입은 털보다 어둡게 파서 그린다. 눈은 가끔 감기고, 귤이 얹히거나 굴러떨어질 때도 감긴다.
-      const face = (x: number, y: number, ch: string, lum = 0.35) => {
-        if (shown(x) > 0.5) g.put(ox + (x + hx) * ax, water + y * s, 1, lum, DARK[0], DARK[1], DARK[2], code(ch));
+      const face = (x: number, y: number, ch: string, c = DARK, lum = 0.35) => {
+        if (shown(x) > 0.5) g.put(ox + (x + hx) * ax, water + y * s, 1, lum, c[0], c[1], c[2], code(ch));
       };
       const blink = (t / 4.3) % 1 < 0.035 || Math.abs(nod) > 0.15 || DROPS.some((at) => u >= at && u < at + 0.35);
-      for (let i = 0; i < 5; i++)
-        for (let j = 0; j < 2; j++) face(-11.2 + i / ax, hy - 1.9 + j / s, blink ? (j ? '-' : ' ') : i === 0 || i === 4 ? (j ? "'" : '.') : ' ');
-      if (!blink) g.put(ox + (hx - 11.2) * ax + 1, water + (hy - 1.9) * s, 0.9, shown(-10.9), IVORY[0], IVORY[1], IVORY[2], code('o'));
+      // 눈: 털을 파낸 자리에 짙은 눈동자를 넣고 그 위에 빛점을 찍는다. 감으면 눈꺼풀 선만 남는다.
+      const eye = blink ? ['     ', ' ___ '] : [' @@@ ', " '-' "];
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) face(-11.4 + i / ax, hy - 1.9 + j / s, eye[j][i], FUR[0], 1);
+      if (!blink) g.put(ox + (hx - 11.4) * ax + 2, water + (hy - 1.9) * s, 0.9, shown(-10.9), IVORY[0], IVORY[1], IVORY[2], code('o'));
       face(-18.2, hy - 0.4, ' ');
       for (let x = -18.4; x < -14.6; x += 1 / ax) face(x, hy + 3.3 + (x + 18.4) * 0.12, '_');
       face(-5.9 + twitch, hy - 4.6, ':');

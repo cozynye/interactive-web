@@ -67,6 +67,8 @@ export class Grid {
   part = new Int16Array(0);
   // 이웃 조각이 이만큼 더 멀리 있으면 그 사이에 윤곽선을 긋는다
   gap = 0.03;
+  // 몸통 안쪽 칸의 밝기 바닥. 낮추면 그늘진 면이 어두워져서 윤곽선이 더 도드라진다.
+  fill = 0.45;
 
   resize(cols: number, rows: number, aspect: number) {
     this.cols = cols;
@@ -176,7 +178,7 @@ export class Grid {
   // 장면이 다 그린 뒤 무대가 부른다. 몸통 칸마다 가장자리면 윤곽선 글자(| / \ - _)를,
   // 안쪽이면 밝기에 맞는 묶음의 글자를 넣는다. 글자를 직접 정한 칸은 건드리지 않는다.
   finish(t: number) {
-    const { cols, rows, part, z, lum, ch, gap } = this;
+    const { cols, rows, part, z, lum, ch, gap, fill } = this;
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {
         const i = r * cols + c;
@@ -213,7 +215,7 @@ export class Grid {
         } else {
           // 칸마다 바뀌는 때가 어긋나게 한다
           ch[i] = poolChar(Math.floor(lum[i] * 3.2), h + Math.floor(t * 3 + (h % 17) / 17));
-          lum[i] = Math.min(1, 0.45 + 0.6 * lum[i]);
+          lum[i] = Math.min(1, fill + 0.6 * lum[i]);
         }
       }
   }

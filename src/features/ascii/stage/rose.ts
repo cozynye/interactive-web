@@ -65,9 +65,12 @@ export function createRose(): Scene {
   const st = Math.sin(TILT);
 
   return {
+    // 꽃잎 사이의 선이 서로 붙지 않게 칸을 조금 잘게 쓴다
+    cell: 5,
     frame(g: Grid, t: number) {
       const { cols, rows, unit: u, aspect } = g;
-      g.gap = 0.012;
+      g.gap = 0.022;
+      g.fill = 0.16;
       const cx = cols / 2;
       const cy = rows / 2;
       const tt = t % LOOP;
@@ -128,7 +131,7 @@ export function createRose(): Scene {
 
       if (grow > 0.98) {
         const spin = t * 0.32;
-        const size = 0.5 * (0.68 + 0.32 * bloom);
+        const size = 0.58 * (0.68 + 0.32 * bloom);
         const hx = stemX(1);
         // 꽃 둘레를 천천히 도는 보조광
         const rx = Math.cos(t * 0.5);
@@ -160,7 +163,9 @@ export function createRose(): Scene {
         }
         for (let i = 0; i < NT - 1; i++) {
           const heart = i / NT;
-          const petal = PETAL + Math.floor((3.6 * ((i / NT) * 20 * PI + 4 * PI)) / TAU);
+          const th = (i / NT) * 20 * PI + 4 * PI;
+          // 바깥 꽃잎은 한 장씩 윤곽선을 긋는다. 촘촘히 말린 속잎은 한 바퀴를 한 조각으로 묶어서 선이 뭉치지 않게 한다.
+          const petal = PETAL + (heart > 0.45 ? 100 + Math.floor(th / TAU) : Math.floor((3.6 * th) / TAU));
           for (let j = 1; j <= NX; j++) {
             const o = (i * (NX + 1) + j) * 3;
             const a = o - 3;

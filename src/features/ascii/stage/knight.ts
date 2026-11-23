@@ -33,7 +33,9 @@ const STAND_AT = 12;
 const CYCLE = 30;
 const RISE = 2.4;
 const SIT_AT = 14;
-const CLOSE = [19, 27];
+const CLOSE = [18, 28.5];
+// 틀을 옮기는 데 걸리는 시간(초)
+const MOVE = 4;
 // 보는 틀: 배율과 화면 한가운데에 놓을 모형의 점. 처음에는 기사만 가까이 보다가 물러나서 창끝까지 담는다.
 const NEAR = [1, 0.05, 1];
 const WIDE = [0.62, -0.1, 1.66];
@@ -55,10 +57,24 @@ export function knightStance(t: number) {
   return s <= 0 ? 'sit' : s >= 1 ? 'stand' : (t - STAND_AT) % CYCLE < SIT_AT ? 'rising' : 'sitting';
 }
 
+// 틀을 옮길 때 쓰는 완급. smooth보다 출발과 도착이 더 느려서 멈췄다 움직이는 티가 덜 난다.
+const ease = (x: number) => {
+  const v = x < 0 ? 0 : x > 1 ? 1 : x;
+  return v * v * v * (v * (v * 6 - 15) + 10);
+};
+
 // 가까이 다가간 정도(0~1)
 function closeUp(t: number) {
   const c = t < STAND_AT ? -1 : (t - STAND_AT) % CYCLE;
-  return smooth((c - CLOSE[0]) / 2.5) * (1 - smooth((c - CLOSE[1] + 2.5) / 2.5));
+  return ease((c - CLOSE[0]) / MOVE) * (1 - ease((c - CLOSE[1] + MOVE) / MOVE));
+}
+
+// 두 틀 사이의 틀. 배율은 곱으로 바꾸고 가운데 점은 배율의 역수를 따라 옮긴다.
+// 이렇게 하면 화면의 한 점이 제자리에 머물러서, 그 점을 축으로 당기거나 미는 것처럼 보인다.
+function between(a: number[], b: number[], k: number) {
+  const s = a[0] * Math.pow(b[0] / a[0], k);
+  const p = (1 / s - 1 / a[0]) / (1 / b[0] - 1 / a[0]);
+  return [s, a[1] + (b[1] - a[1]) * p, a[2] + (b[2] - a[2]) * p];
 }
 
 // 바람 세기(0.4~1.3쯤). 주기가 맞물리지 않는 물결을 섞어서 같은 돌풍이 되풀이되지 않는다.
@@ -142,19 +158,19 @@ export function createKnight(): Scene {
       const { cols, rows, aspect } = g;
       // 모형 단위 1이 차지하는 줄 수: 기사가 화면 높이를 거의 채운다
       // 보는 틀: 처음에는 가까이, 기사가 다 드러나면 물러나고, 가끔 다시 다가간다
-      const back = smooth((t - BODY[1]) / 4);
       const near = closeUp(t);
-      const cam = [0, 1, 2].map((i) => NEAR[i] + (WIDE[i] - NEAR[i]) * back + (FACE[i] - WIDE[i]) * near);
+      const cam = near > 0 ? between(WIDE, FACE, near) : between(NEAR, WIDE, ease((t - BODY[1]) / (MOVE + 1)));
       const u = Math.min(rows * 0.405, cols / (3.3 * aspect)) * cam[0];
       const ax = u * aspect;
-      const gy = Math.round(rows * 0.5 + u * cam[2]);
+      // 땅의 줄은 칸에 맞추지 않는다. 맞추면 틀이 움직일 때 그림이 한 줄씩 튄다.
+      const gy = rows * 0.5 + u * cam[2];
       const ox = cols * 0.5 - cam[1] * ax;
       const wind = smooth((t - WIND_AT) / 2.5);
       const gust = gustAt(t) * (0.2 + 0.8 * wind);
       const breath = Math.sin(t * 1.1);
 
       // 풀밭: 바람 쪽으로 누운 빗금이 물결친다. 기사 발치는 그림자로 어둡다.
-      const horizon = gy - Math.round(u * 0.34);
+      const horizon = Math.round(gy - u * 0.34);
       const laid = smooth(t / 1.6);
       for (let r = horizon; r < rows; r++) {
         const depth = (r - horizon) / (rows - horizon);

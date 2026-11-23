@@ -137,19 +137,19 @@ function build() {
         BASE + h * (TOP - BASE) + n[1] * 0.052,
         Math.sin(a) * r + n[2] * 0.052,
         n,
-        c,
-        code('%')
+        c
       );
     }
   }
-  // 바닥에 둘러 놓은 선물 상자
+  // 바닥에 둘러 놓은 선물 상자. 면마다 글자가 달라서 모서리가 보이고, 끈은 상자와 반대 색으로 십자로 두른다.
   GIFT_COLORS.forEach((c, k) => {
+    const band = GIFT_COLORS[(k + 1) % 2];
     const a = 0.5 + k * (TAU / GIFT_COLORS.length);
     const dist = 0.66 + (k % 2) * 0.12;
     const s = 0.085 + (k % 3) * 0.02;
     const ox = Math.cos(a) * dist;
     const oz = Math.sin(a) * dist;
-    for (let i = 0; i < 560; i++) {
+    for (let i = 0; i < 900; i++) {
       // 여섯 면 중 하나를 골라 그 위의 점을 찍는다 (바닥면은 뺀다)
       const face = Math.floor(rand() * 5);
       const u = rand() * 2 - 1;
@@ -160,16 +160,24 @@ function build() {
       if (face === 2) [p, n] = [[-1, u, v], [-1, 0, 0]];
       if (face === 3) [p, n] = [[u, v, 1], [0, 0, 1]];
       if (face === 4) [p, n] = [[u, v, -1], [0, 0, -1]];
-      const ribbon = Math.abs(p[0]) < 0.2 || Math.abs(p[2]) < 0.2;
+      // 끈은 윗면에서는 십자, 옆면에서는 가운데를 세로로 내려오는 띠다
+      const ribbon = face === 0 ? Math.abs(p[0]) < 0.2 || Math.abs(p[2]) < 0.2 : Math.abs(face < 3 ? p[2] : p[0]) < 0.2;
       push(
         SOLID,
         ox + p[0] * s,
         BASE - 0.13 + (p[1] + 1) * s,
         oz + p[2] * s,
         n,
-        ribbon ? [36, 150, 78] : c,
-        code(ribbon ? '=' : '%')
+        ribbon ? band : c,
+        code(ribbon ? (face ? '|' : '+') : face === 0 ? '=' : face < 3 ? 'x' : '#')
       );
+    }
+    // 윗면 한가운데의 리본 매듭: 양쪽으로 벌어진 고리 둘
+    for (let i = 0; i < 90; i++) {
+      const th = rand() * TAU;
+      const loop = Math.abs(Math.cos(th)) * (0.5 + 0.5 * rand());
+      const n = [Math.cos(th), 0.6, Math.sin(th) * 0.3];
+      push(SOLID, ox + Math.cos(th) * loop * s * 0.75, BASE - 0.13 + 2 * s + (0.1 + Math.abs(Math.sin(th)) * loop * 0.5) * s, oz + Math.sin(th) * loop * s * 0.2, n, band, code(loop > 0.6 ? 'o' : '8'));
     }
   });
   // 꼭대기 별 (다섯 갈래)
@@ -270,7 +278,7 @@ export function createTree(): Scene {
         const nx = p.nx * ca + p.nz * sa;
         const nz = -p.nx * sa + p.nz * ca;
         const lit = Math.max(0, nx * 0.4 + p.ny * 0.5 - nz * 0.75);
-        const lum = p.kind === LEAF ? 0.2 + 0.72 * lit : 0.42 + 0.58 * lit;
+        const lum = p.kind === LEAF ? 0.2 + 0.72 * lit : 0.3 + 0.7 * lit;
         g.put(sx, sy, z, lum * rev, p.r, p.g, p.b, p.ch);
       }
 
