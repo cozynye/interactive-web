@@ -359,64 +359,61 @@ function label(k: Cam, c: number, r: number, s: string, lum: number, col: number
 }
 
 // 글자 그림 한 장을 찍는다. (c0, r0)은 발이 놓이는 가운데 칸이고, tint는 글자마다 색을 고르는 기호다.
-function stamp(k: Cam, c0: number, r0: number, rows: string[], tint: string[] | null, flip: boolean, z: number, lum: number, ink: (key: string) => number[]) {
+function stamp(k: Cam, c0: number, r0: number, rows: string[], tint: string[] | null, flip: boolean, z: number, lum: number, ink: (key: string, ch: string) => number[]) {
   const mid = 4;
   for (let i = 0; i < rows.length; i++)
     for (let j = 0; j < rows[i].length; j++) {
       const ch = rows[i][j];
       if (ch === ' ') continue;
       const off = j - (tint ? mid : (rows[i].length - 1) / 2);
-      dot(k, c0 + Math.round(flip ? -off : off), r0 - (rows.length - 1 - i), z, lum, ink(tint ? tint[i][j] : 'i'), code(flip ? (MIRROR[ch] ?? ch) : ch));
+      dot(k, c0 + Math.round(flip ? -off : off), r0 - (rows.length - 1 - i), z, lum, ink(tint ? tint[i][j] : 'i', ch), code(flip ? (MIRROR[ch] ?? ch) : ch));
     }
 }
 
-// 주인공: 깃 달린 투구, 뒤로 날리는 붉은 망토, 어깨판과 문장 달린 겉옷, 세워 든 검. 오른쪽을 보는 그림이고 왼쪽을 볼 때는 뒤집는다.
-// 가운데 칸은 왼쪽에서 다섯 번째(몸통)다.
-const HERO = ['   ,^.  |', '  ~(o)] |', ' ~~/#\\==+', ' ~{|H|)  ', '   /_\\   ', '   / \\   '];
-const HERO_TINT = ['   ggg  s', '  riiii s', ' rriiiiig', ' rririii ', '   igi   ', '   i i   '];
-// 벨 때는 검을 앞으로 뻗는다
-const HERO_SWING = ['   ,^.      ', '  ~(o)]     ', ' ~~/#\\==+---', ' ~{|H|)     ', '   /_\\      ', '   / \\      '];
-const HERO_SWING_TINT = ['   ggg      ', '  riiii     ', ' rriiiiigsss', ' rririii    ', '   igi      ', '   i i      '];
-// 걸을 때 번갈아 나오는 다리와, 바람에 따라 바뀌는 망토 자락(머리 뒤, 어깨 뒤, 등 뒤)
-const LEGS = ['   / \\   ', '   |\\    ', '   | |   ', '   /|    '];
-const CAPES = [
-  ['  ~', ' ~~', ' ~'],
-  ['  -', ' ~-', ' -'],
-  ['  ~', ' -~', ' ='],
-  ['  =', ' ~~', ' ~'],
+// 주인공: 사람 모양이 아니라 로그라이크에서 오래 주인공을 맡아 온 글자 @다. 껍질에 싸여 떠다니고 껍질의 무늬가 돌아간다.
+// 오른쪽을 보는 그림이고(부리가 앞이다) 왼쪽을 볼 때는 뒤집는다. 가운데 칸은 왼쪽에서 다섯 번째(@)다.
+const HERO = [
+  ['  .-=-.  ', ' (  @  > ', "  '-=-'  "],
+  ['  .=-=.  ', ' (  @  > ', "  '=-='  "],
 ];
+const HERO_TINT = ['  iiiii  ', ' i  g  i ', '  iiiii  '];
+// 벨 때는 부리에서 날이 뻗는다
+const HERO_SWING = ' (  @  >=+---';
+const HERO_SWING_TINT = ' i  g  isssss';
+// 움직일 때 뒤로 끌리는 꼬리
+const TAILS = ['~-.', '-~.', '~~-', '=~.'];
 
 function heroRows(t: number, moving: boolean, swing: boolean) {
-  const rows = [...(swing ? HERO_SWING : HERO)];
-  // 달릴 때는 망토가 빠르게, 서 있을 때는 천천히 펄럭인다
-  const cape = CAPES[Math.abs(Math.floor(t * (moving ? 9 : 3))) % CAPES.length];
-  for (let i = 0; i < 3; i++) rows[i + 1] = cape[i] + rows[i + 1].slice(cape[i].length);
-  if (moving) rows[5] = LEGS[Math.abs(Math.floor(t * 10)) % LEGS.length] + rows[5].slice(9);
-  // 서 있을 때는 숨을 쉬며 깃이 까딱인다
-  else if (Math.sin(t * 2.2) > 0.6) rows[0] = rows[0].replace(',^.', '.^,');
+  // 움직일 때는 껍질의 무늬가 빠르게, 서 있을 때는 천천히 돈다
+  const rows = [...HERO[Math.abs(Math.floor(t * (moving ? 8 : 2.5))) % HERO.length]];
+  if (swing) rows[1] = HERO_SWING;
   return rows;
 }
+const SWING_TINT = [HERO_TINT[0], HERO_SWING_TINT, HERO_TINT[2]];
 
-// 무리의 글자 그림. 종류마다 두 장을 번갈아 보여 준다.
+// 무리의 글자 그림. 종류마다 두 장을 번갈아 보여 준다. 눈(o, @)은 몸과 다른 색으로 빛난다.
+// 차례로 이빨을 딱딱거리는 덩어리, 날개를 치는 박쥐, 턱을 떠는 해골, 돌판을 두른 골렘이다.
 const MOBS = [
   [
-    [',o,', '(%)', '/ \\'],
-    [',o,', '(%)', '| |'],
+    [' .-. ', '(o o)', ' ^v^ '],
+    [' .-. ', '(o o)', ' v^v '],
   ],
-  [['\\^o^/'], ['/vov\\']],
+  [['\\\\(oo)//'], ['//(oo)\\\\']],
   [
-    [' @ ', '-#-', '/ \\'],
-    [' @ ', '\\#/', '| |'],
+    [' .-. ', '(o o)', ' )=( ', '\\ | /'],
+    [' .-. ', '(o o)', ' )-( ', '/ | \\'],
   ],
   [
-    [' ___ ', '[o_o]', '(###)', ' d b '],
-    [' ___ ', '[o_o]', '(###)', ' b d '],
+    [' ,===, ', '[(o o)]', '[##+##]', " d' 'b "],
+    [' ,===, ', '[(o o)]', '[#+#+#]', " b' 'd "],
   ],
 ];
+// 우두머리는 뿔 달린 관을 쓰고 외눈이다
 const ELITE = [
-  [' \\W/ ', ' (@) ', '/[#]\\', ' / \\ '],
-  [' \\W/ ', ' (@) ', '\\[#]/', ' | | '],
+  [' \\WVW/ ', ' <(@)> ', '/{###}\\', '  / \\  '],
+  [' \\WVW/ ', ' <(@)> ', '\\{###}/', '  | |  '],
 ];
+const EYES = [255, 104, 72];
 const WHITE = [255, 255, 255];
 
 function mobs(k: Cam) {
@@ -452,7 +449,7 @@ function mobs(k: Cam) {
     const art = (e.elite ? ELITE : MOBS[e.kind])[frame];
     const col = e.flash > 0 ? WHITE : e.elite ? GOLD : MOB[e.kind];
     // 박쥐는 한 줄 떠서 난다. 무리는 주인공보다 어둡게 그려서 주인공이 먼저 눈에 들어오고, 한 줄짜리 박쥐만 조금 밝다.
-    stamp(k, c, r + (e.kind === 1 ? -1 : 1), art, null, false, 2 - r / rows, e.flash > 0 ? 1 : e.elite || e.kind === 1 ? 0.85 : 0.66, () => col);
+    stamp(k, c, r + (e.kind === 1 ? -1 : 1), art, null, false, 2 - r / rows, e.flash > 0 ? 1 : e.elite || e.kind === 1 ? 0.85 : 0.66, (_key, ch) => (e.flash <= 0 && (ch === 'o' || ch === '@') ? EYES : col));
     if (e.elite) {
       const n = Math.round((Math.max(0, e.hp) / e.max) * 7);
       label(k, c - 3, r - 4, '='.repeat(n) + '.'.repeat(7 - n), 0.9, GOLD);
@@ -466,24 +463,36 @@ function hero(k: Cam, ghosts: Ghost[]) {
   const { g, game, t, sx, sy, fx, fy } = k;
   const p = game.player;
   const pc = fx(p.x);
-  const pr = fy(p.y) + 3;
-  // 맞으면 몸 전체가 아니라 흰 부분만 붉게 깜박여서 형체가 남는다
+  // 그림은 3줄이고 가운데 줄이 플레이어의 자리다. 떠 있어서 조금씩 오르내린다.
+  const pr = fy(p.y) + 1 + Math.sin(t * 3) * 0.25;
+  // 맞으면 몸 전체가 아니라 껍질만 붉게 깜박여서 형체가 남는다
   const sting = p.hurt > 0 && Math.sin(t * 40) > 0;
   const ink = (key: string) => (key === 'r' ? SCARF : key === 'g' ? GOLD : key === 's' ? STEEL : sting ? DANGER : IVORY);
-  // 발이 놓이는 줄 (그림은 6줄이고 몸의 가운데가 플레이어의 자리다)
-  for (const gh of ghosts) stamp(k, fx(gh.x), fy(gh.y) + 3, HERO, HERO_TINT, gh.flip, -4.5, gh.life * 1.6, () => MANA);
+  for (const gh of ghosts) stamp(k, fx(gh.x), fy(gh.y) + 1, HERO[0], HERO_TINT, gh.flip, -4.5, gh.life * 1.6, () => MANA);
   if (game.phase !== 'lost' || game.since < 0.6) {
     // 무적인 동안에는 깜박인다
     const blink = p.safe > 0 && p.dash <= 0 && Math.sin(t * 50) > 0;
     const swing = game.slashes.length > 0;
     // 벨 때는 베는 쪽을 본다
     const flip = swing ? Math.cos(game.slashes[0].ang) < 0 : p.side < 0;
-    stamp(k, pc, pr, heroRows(t, p.moving, swing), swing ? HERO_SWING_TINT : HERO_TINT, flip, -5, blink ? 0.45 : 1, ink);
-    // 다쳤으면 발밑에 체력 막대가 보인다
+    const lum = blink ? 0.45 : 1;
+    stamp(k, pc, pr, heroRows(t, p.moving, swing), swing ? SWING_TINT : HERO_TINT, flip, -5, lum, ink);
+    // 둘레를 도는 불티 둘. 뒤로 돌아간 것은 어둡다.
+    for (let i = 0; i < 2; i++) {
+      const a = t * 3.4 + i * Math.PI;
+      dot(k, pc + Math.cos(a) * 5.2, pr - 1 + Math.sin(a) * 1.7, -5, lum * (0.6 + 0.4 * Math.sin(a)), SCARF, code(i ? '+' : '*'));
+    }
+    // 움직이면 뒤로 꼬리가 끌린다
+    if (p.moving && !swing) {
+      const tail = TAILS[Math.abs(Math.floor(t * 9)) % TAILS.length];
+      for (let i = 0; i < tail.length; i++) dot(k, pc + (flip ? 1 : -1) * (4 + i), pr - 1, -5, lum * (0.9 - i * 0.25), SCARF, code(tail[i]));
+    }
+    // 다쳤으면 아래에 체력 막대가 보인다
     if (p.hp < p.maxHp && game.phase === 'fight') {
       const n = Math.max(0, Math.round((p.hp / p.maxHp) * 7));
-      label(k, pc - 3, pr + 1, '='.repeat(n), 0.9, DANGER);
-      label(k, pc - 3 + n, pr + 1, '-'.repeat(7 - n), 0.35, STONE);
+      const br = fy(p.y) + 3;
+      label(k, pc - 3, br, '='.repeat(n), 0.9, DANGER);
+      label(k, pc - 3 + n, br, '-'.repeat(7 - n), 0.35, STONE);
     }
   }
 
