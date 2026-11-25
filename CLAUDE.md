@@ -27,13 +27,15 @@ src/
 ├── app/                  # 경로
 │   ├── page.tsx          # 홈: 효과별 타일
 │   ├── fire/             # /fire  (FireLoader가 클라이언트에서만 불러온다)
-│   └── ascii/            # /ascii 목록, /ascii/<slug> 개별 작품
+│   ├── ascii/            # /ascii 목록, /ascii/<slug> 개별 작품
+│   └── convert/          # /convert 사진을 글자 그림으로
 ├── components/           # 여러 경로가 같이 쓰는 것 (SiteNav, 홈 타일용 FirePreview)
 ├── lib/                  # 재생 상태머신(runState)과 티커
 └── features/
     ├── fire/             # 불꽃놀이 엔진과 화면
     ├── ascii/            # 아스키 작품 계산식, 컴포넌트, 목록(asciiList.ts)
-    └── game/             # /game 생존 게임: 규칙(engine.ts), 그리기(draw.ts), 입력(controls.ts), 자동 조종(bot.ts), 캔버스 렌더러(ink.ts), 화면(GameStage.tsx), 홈 타일 시연(demo.ts)
+    ├── game/             # /game 생존 게임: 규칙(engine.ts), 그리기(draw.ts), 입력(controls.ts), 자동 조종(bot.ts), 캔버스 렌더러(ink.ts), 화면(GameStage.tsx), 홈 타일 시연(demo.ts)
+    └── convert/          # /convert 사진 변환기: 글자 고르기(shape.ts), 캔버스 읽기와 그리기(render.ts), 예시 그림(sample.ts), 화면(Converter.tsx), 홈 타일 시연(ConvertPreview.tsx)
 ```
 
 ## 상태 확인
@@ -51,3 +53,4 @@ src/
 - `src/features/fire/`는 다른 프로젝트에서 옮겨 온 코드라 린트 규칙 일부를 풀어 두었다(`eslint.config.mjs`). 엔진은 React와 분리된 `createKnitFire()` 하나로 동작하고, `window`·`localStorage`에 의존해서 서버에서 그리지 않는다.
 - 게임 규칙은 `src/features/game/engine.ts`의 `update()`에만 둔다. DOM을 건드리지 않는 순수한 코드라서 `__tests__/engine.test.ts`가 화면 없이 돌린다. 게임 화면은 지금 단계를 `main`의 `data-phase`(`title`/`fight`/`levelup`/`won`/`lost`)에 적는다. 무기와 적의 수치는 `engine.ts` 위쪽의 표(`SWORD`, `KINDS` 등)에 모여 있고, 고친 뒤에는 `bot.ts`의 자동 조종으로 끝까지 돌리는 테스트가 균형이 크게 깨지지 않았는지 본다. 게임 화면은 세 겹으로 그린다(`draw.ts`의 `Layers`): 칸에 맞춘 세계 격자, 칸 사이에 놓는 글자 목록(`dot`·`label`·`stamp`로 넣는다), 붙박인 HUD 격자. 움직이는 것을 새로 그릴 때는 `fx`·`fy`와 `dot`을, 바닥에 깔리는 효과는 `sx`·`sy`와 `g.put`·`g.add`를 쓴다. 게임만은 `createTicker`를 쓰지 않고 자체 루프를 돈다(움직임 줄이기가 켜져 있어도 게임은 해야 하기 때문이고, 그때는 화면 흔들림만 끈다).
 - 계속 도는 애니메이션은 직접 `requestAnimationFrame`을 돌리지 않고 `src/lib/ticker.ts`의 `createTicker`를 쓴다. 화면 밖 정지와 `prefers-reduced-motion` 처리가 거기에 있다.
+- 사진 변환기에서 글자를 고르는 계산은 `src/features/convert/shape.ts`에만 둔다. DOM을 건드리지 않아서 `__tests__/shape.test.ts`가 화면 없이 돌린다. 캔버스가 필요한 일(글꼴에서 글자 모양 재기, 사진 줄이기, 그리기)은 `render.ts`에 있다. 글자 모양은 미리 적어 둔 표가 아니라 그 브라우저의 글꼴로 한 번 재서 쓰므로, 글꼴 목록(`FONT`)을 바꾸면 따로 고칠 것이 없다. 화면은 지금 상태를 `main`의 `data-state`(`empty`/`ready`)에 적는다.

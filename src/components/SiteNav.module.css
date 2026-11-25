@@ -14,9 +14,6 @@
   padding: 0 22px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  letter-spacing: -0.01em;
 }
 
 .brand {
@@ -24,18 +21,4 @@
   font-weight: 600;
   letter-spacing: -0.022em;
   color: var(--ink);
-}
-
-.links {
-  display: flex;
-  gap: 28px;
-}
-
-.links a {
-  color: rgba(0, 0, 0, 0.8);
-  transition: color 0.2s;
-}
-
-.links a:hover {
-  color: #000;
 }

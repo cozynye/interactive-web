@@ -9,11 +9,6 @@ function SiteNav() {
         <Link href="/" className={styles.brand}>
           Playground
         </Link>
-        <div className={styles.links}>
-          <Link href="/fire">불꽃놀이</Link>
-          <Link href="/ascii">아스키</Link>
-          <Link href="/game">게임</Link>
-        </div>
       </nav>
     </header>
   );

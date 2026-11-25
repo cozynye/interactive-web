@@ -3,6 +3,7 @@ import Link from 'next/link';
 import FirePreview from '@/components/FirePreview';
 import SiteNav from '@/components/SiteNav';
 import AsciiStage from '@/features/ascii/stage/AsciiStage';
+import ConvertPreview from '@/features/convert/ConvertPreview';
 
 import styles from './page.module.css';
 
@@ -61,6 +62,23 @@ export default function Home() {
             </div>
             <div className={styles.stage}>
               <AsciiStage name="dragon" />
+            </div>
+          </section>
+
+          <section className={`${styles.tile} ${styles.night}`}>
+            <div className={styles.copy}>
+              <h2 className={styles.title}>사진을 글자로</h2>
+              <p className={styles.sub}>
+                사진을 올리면 모양이 닮은 글자로 다시 그린다.
+                <br />
+                글자로 복사하거나 PNG로 저장한다.
+              </p>
+              <Link href="/convert" className={styles.pill}>
+                사진 바꿔 보기
+              </Link>
+            </div>
+            <div className={styles.stage}>
+              <ConvertPreview className={styles.still} />
             </div>
           </section>
         </div>
