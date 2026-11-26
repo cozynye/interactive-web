@@ -4,6 +4,7 @@ import FirePreview from '@/components/FirePreview';
 import SiteNav from '@/components/SiteNav';
 import AsciiStage from '@/features/ascii/stage/AsciiStage';
 import ConvertPreview from '@/features/convert/ConvertPreview';
+import InkAlley from '@/features/ink/InkAlley';
 
 import styles from './page.module.css';
 
@@ -79,6 +80,23 @@ export default function Home() {
             </div>
             <div className={styles.stage}>
               <ConvertPreview className={styles.still} />
+            </div>
+          </section>
+
+          <section className={`${styles.tile} ${styles.day} ${styles.wide}`}>
+            <div className={styles.copy}>
+              <h2 className={styles.title}>한옥 골목</h2>
+              <p className={styles.sub}>
+                펜 선으로 그린 골목을 사람들이 오간다.
+                <br />
+                해를 끌어 밤으로 넘기면 창과 초롱에 불이 켜진다.
+              </p>
+              <Link href="/alley" className={styles.pill}>
+                한옥 골목 열기
+              </Link>
+            </div>
+            <div className={styles.scene}>
+              <InkAlley />
             </div>
           </section>
         </div>

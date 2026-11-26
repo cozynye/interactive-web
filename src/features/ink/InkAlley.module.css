@@ -1,0 +1,14 @@
+.card {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: #1c1c1c;
+  --paper: #fdfcf8;
+  background: var(--paper);
+  font-family: var(--sans);
+}
+
+/* 종이로 칠한 면은 밤이 되면 장면이 바꾸는 --paper를 따라간다 */
+.card :global(.pp) {
+  fill: var(--paper);
+}

@@ -121,6 +121,23 @@
   object-position: bottom;
 }
 
+/* 선화 카드는 타일 아래쪽에 붙고 위 모서리만 둥글다 */
+.scene {
+  flex: none;
+  aspect-ratio: 2 / 1;
+  width: min(100% - 32px, 1100px);
+  margin-top: 28px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(40, 34, 26, 0.1);
+}
+
+/* 하늘의 해와 달까지 다 보여야 해서 높이를 고정하지 않고 카드 비율을 따른다 */
+.tile.wide {
+  grid-column: 1 / -1;
+  height: auto;
+}
+
 /* 넓은 화면에서는 두 줄로 놓아 네 개가 한 화면 남짓에 들어오게 한다 */
 @media (min-width: 900px) {
   .tiles {

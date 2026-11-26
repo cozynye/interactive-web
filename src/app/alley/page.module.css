@@ -1,0 +1,42 @@
+/* 카드 둘레의 바탕은 장면의 시각과 상관없이 늘 같은 색이다 */
+.room {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #ebe8e2;
+}
+
+.frame {
+  width: min(94vw, calc((100vh - 112px) * 2));
+  aspect-ratio: 2 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(40, 34, 26, 0.1),
+    0 18px 50px -18px rgba(40, 34, 26, 0.35);
+}
+
+.back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: 16px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+  background: rgba(40, 34, 26, 0.08);
+  transition: background 0.2s;
+}
+
+.back:hover {
+  background: rgba(40, 34, 26, 0.14);
+}
+
+.back:focus-visible {
+  border-radius: 17px;
+}
